@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tgz
+.env
+.env.local
+.DS_Store
+*.log
+/brains
+
+# Local / generated agent state — not part of the CLI source (and may hold tokens)
+.claude/
+.codex/
+.gemini/
+.cursor/
+.windsurf/
+.vscode/
+.agents/
+.mcp.json
+opencode.json
+skills-lock.json
