@@ -28,6 +28,7 @@ export type AgentDef = {
   // --- MCP config targets ---
   globalPath: string // absolute (user scope)
   projectPath: string // cwd-relative (this project)
+  globalOnly?: boolean // only works at user scope (e.g. Copilot, VS Code) — always global
   format: ConfigFormat
   containerKey: string // "mcpServers" | "mcp" | "servers" | "mcp_servers"
   entry: (url: string) => Record<string, unknown> // one URL-only server entry
@@ -119,6 +120,7 @@ export const AGENTS: AgentDef[] = [
     label: "GitHub Copilot CLI",
     globalPath: path.join(HOME, ".copilot", "mcp-config.json"),
     projectPath: ".mcp.json",
+    globalOnly: true, // Copilot doesn't read workspace (project) MCP config
     format: "json",
     containerKey: "mcpServers",
     entry: httpType,
@@ -156,6 +158,7 @@ export const AGENTS: AgentDef[] = [
     label: "VS Code / Copilot",
     globalPath: vscodeUserMcp(),
     projectPath: path.join(".vscode", "mcp.json"),
+    globalOnly: true, // configured at user scope, not per-project
     format: "json",
     containerKey: "servers",
     entry: httpType,

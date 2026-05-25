@@ -41,14 +41,19 @@ export async function runSetup(): Promise<SetupResult> {
   }
   const scope = await pickScope(interactive)
 
+  // Some agents only work at user scope (Copilot / VS Code don't pick up
+  // project-level config) — force those to global regardless of the chosen scope.
+  const scopeFor = (a: AgentDef): Scope => (a.globalOnly ? "global" : scope)
+
   // 1. MCP config (idempotent merge). Track freshly-added so re-runs don't re-nag.
   const configured: AgentDef[] = []
   const pending: AgentDef[] = []
-  const s = spin(`Adding Juspay MCP to ${selected.length} agent(s) (${scope})...`)
+  const s = spin(`Adding Juspay MCP to ${selected.length} agent(s)...`)
   for (const a of selected) {
-    const already = await isConfigured(a, scope)
+    const sc = scopeFor(a)
+    const already = await isConfigured(a, sc)
     try {
-      await writeMcp(a, scope)
+      await writeMcp(a, sc)
       configured.push(a)
       if (!already) pending.push(a)
     } catch (err) {
@@ -56,11 +61,20 @@ export async function runSetup(): Promise<SetupResult> {
     }
   }
   s.done(`Configured ${configured.map((a) => a.label).join(", ")}`)
+  if (scope === "project") {
+    const forced = configured.filter((a) => a.globalOnly)
+    if (forced.length > 0) {
+      info(`${forced.map((a) => a.label).join(", ")} only support global scope — configured globally.`)
+    }
+  }
 
-  // 2. Skills at the same scope (for exactly the configured agents)
+  // 2. Skills — install per EFFECTIVE scope (global-only agents go to global).
   step("Installing skills...")
   try {
-    await addSkills(configured, scope)
+    for (const sc of ["project", "global"] as const) {
+      const group = configured.filter((a) => scopeFor(a) === sc)
+      if (group.length > 0) await addSkills(group, sc)
+    }
     done("Skills installed")
   } catch (err) {
     warn(`Skills install failed: ${(err as Error).message}`)
