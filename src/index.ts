@@ -79,7 +79,8 @@ async function runUninstall(): Promise<void> {
 function runCmdQuiet(cmd: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     const [bin, ...args] = cmd
-    const child = spawn(bin, args, { stdio: "ignore" })
+    // Windows: agent CLIs are .cmd shims; spawn needs a shell to launch them.
+    const child = spawn(bin, args, { stdio: "ignore", shell: process.platform === "win32" })
     child.on("error", () => resolve(false))
     child.on("exit", (code) => resolve(code === 0))
   })

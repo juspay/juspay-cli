@@ -42,7 +42,11 @@ export async function removeSkills(): Promise<boolean> {
 
 function runSkills(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn("npx", ["-y", "skills", ...args], { stdio: "inherit" })
+    // Windows: npx is npx.cmd; spawn can't launch a .cmd without a shell.
+    const child = spawn("npx", ["-y", "skills", ...args], {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    })
     child.on("error", reject)
     child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`skills ${args[0]} exited ${code}`))))
   })
