@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
-import fs from "node:fs/promises"
 import pc from "picocolors"
 
-import { AGENTS, configFileFor, type AgentDef } from "./agents.js"
-import { removeMcp } from "./mcp-writer.js"
-import { DASHBOARD_MCP_NAME, PACKAGE_NAME } from "./servers.js"
+import { AGENTS, type AgentDef } from "./agents.js"
+import { hasOurMcp, removeMcp } from "./mcp-writer.js"
+import { PACKAGE_NAME } from "./servers.js"
 import { runSetup, type SetupResult } from "./setup.js"
 import { removeSkills } from "./skills-installer.js"
 import { banner, done, info, summaryBox } from "./ui.js"
@@ -91,12 +90,7 @@ async function runList(): Promise<void> {
   for (const a of AGENTS) {
     const scopes: string[] = []
     for (const scope of ["global", "project"] as const) {
-      try {
-        const raw = await fs.readFile(configFileFor(a, scope), "utf8")
-        if (raw.includes(DASHBOARD_MCP_NAME)) scopes.push(scope)
-      } catch {
-        // no config at this scope
-      }
+      if (await hasOurMcp(a, scope)) scopes.push(scope)
     }
     if (scopes.length > 0) found.push(`${a.label} (${scopes.join(", ")})`)
   }

@@ -60,8 +60,19 @@ export async function removeMcp(agent: AgentDef, scope: Scope): Promise<boolean>
   if (!changed) return false
 
   const out = agent.format === "json" ? JSON.stringify(config, null, 2) + "\n" : stringifyToml(config)
-  await fs.writeFile(file, out)
+  await writeAtomic(file, out)
   return true
+}
+
+// Parsed check: is OUR dashboard MCP actually in the agent's config at this
+// scope? Reads the real container key instead of grepping the raw file, so an
+// unrelated occurrence of "juspay-mcp" (in a comment, in another value) does
+// not false-positive. (Convention borrowed from microsoft/apm.)
+export async function hasOurMcp(agent: AgentDef, scope: Scope): Promise<boolean> {
+  const config = await readExisting(configFileFor(agent, scope), agent.format).catch(() => null)
+  if (!config) return false
+  const container = config[agent.containerKey] as Record<string, unknown> | undefined
+  return Boolean(container && container[DASHBOARD_MCP_NAME])
 }
 
 // Read an existing config, or null if absent. Throws (refusing to overwrite) if
@@ -90,7 +101,7 @@ async function mergeJson(file: string, containerKey: string, entries: Record<str
       : {}
   Object.assign(container, entries)
   config[containerKey] = container
-  await fs.writeFile(file, JSON.stringify(config, null, 2) + "\n")
+  await writeAtomic(file, JSON.stringify(config, null, 2) + "\n")
 }
 
 async function mergeToml(file: string, containerKey: string, entries: Record<string, unknown>): Promise<void> {
@@ -101,5 +112,15 @@ async function mergeToml(file: string, containerKey: string, entries: Record<str
       : {}
   Object.assign(container, entries)
   config[containerKey] = container
-  await fs.writeFile(file, stringifyToml(config))
+  await writeAtomic(file, stringifyToml(config))
+}
+
+// Atomic write: tempfile + rename, so a concurrent reader or a crash never
+// sees a partial config. Mode 0o600 because agent configs (e.g. ~/.claude.json)
+// can hold OAuth state and must not be world-readable. (Borrowed from
+// microsoft/apm's adapter conventions.)
+async function writeAtomic(file: string, contents: string): Promise<void> {
+  const tmp = `${file}.tmp.${process.pid}.${Date.now()}`
+  await fs.writeFile(tmp, contents, { mode: 0o600 })
+  await fs.rename(tmp, file)
 }

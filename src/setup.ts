@@ -10,12 +10,10 @@
  * ones, so re-running setup doesn't re-nag already-configured agents.
  */
 
-import fs from "node:fs/promises"
 import { cancel, isCancel, multiselect, select } from "@clack/prompts"
 
-import { configFileFor, detectAgents, type AgentDef, type Scope } from "./agents.js"
-import { writeMcp } from "./mcp-writer.js"
-import { DASHBOARD_MCP_NAME } from "./servers.js"
+import { detectAgents, type AgentDef, type Scope } from "./agents.js"
+import { hasOurMcp, writeMcp } from "./mcp-writer.js"
 import { addSkills } from "./skills-installer.js"
 import { done, info, spin, step, warn } from "./ui.js"
 
@@ -51,7 +49,7 @@ export async function runSetup(): Promise<SetupResult> {
   const s = spin(`Adding Juspay MCP to ${selected.length} agent(s)...`)
   for (const a of selected) {
     const sc = scopeFor(a)
-    const already = await isConfigured(a, sc)
+    const already = await hasOurMcp(a, sc)
     try {
       await writeMcp(a, sc)
       configured.push(a)
@@ -81,15 +79,6 @@ export async function runSetup(): Promise<SetupResult> {
   }
 
   return { configured, pending, scope }
-}
-
-async function isConfigured(agent: AgentDef, scope: Scope): Promise<boolean> {
-  try {
-    const raw = await fs.readFile(configFileFor(agent, scope), "utf8")
-    return raw.includes(DASHBOARD_MCP_NAME)
-  } catch {
-    return false
-  }
 }
 
 async function pickAgents(detected: AgentDef[], interactive: boolean): Promise<AgentDef[]> {
