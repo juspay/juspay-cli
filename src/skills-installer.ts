@@ -40,13 +40,31 @@ export async function removeSkills(): Promise<boolean> {
   return global || project
 }
 
+// When our CLI is itself launched via `npx`/`npm exec`, npm pre-populates the
+// child env with `npm_*` vars + INIT_CWD describing the OUTER invocation. A
+// nested `npx` then misreads them — `npm_config_prefix` leaks, `npm_command=exec`
+// short-circuits, `npm_package_name=@juspay/cli` confuses package resolution.
+// Strip them so the inner process sees a fresh-shell env.
+function scrubbedEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  for (const k of Object.keys(env)) {
+    if (k.startsWith("npm_")) delete env[k]
+  }
+  delete env.INIT_CWD
+  return env
+}
+
 function runSkills(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    // Windows: npx is npx.cmd; spawn can't launch a .cmd without a shell.
-    const child = spawn("npx", ["-y", "skills", ...args], {
-      stdio: "inherit",
-      shell: process.platform === "win32",
-    })
+    // `npm exec --yes --package skills -- skills <args>` is the canonical,
+    // unambiguous shape of `npx -y skills <args>`. Spelling out `--package`
+    // and `--` keeps newer npm argv parsers happy and survives nesting under
+    // an outer `npx`. Windows: npm is npm.cmd; spawn needs a shell for .cmd.
+    const child = spawn(
+      "npm",
+      ["exec", "--yes", "--package", "skills", "--", "skills", ...args],
+      { stdio: "inherit", shell: process.platform === "win32", env: scrubbedEnv() },
+    )
     child.on("error", reject)
     child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`skills ${args[0]} exited ${code}`))))
   })

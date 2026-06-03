@@ -7,7 +7,11 @@ import { hasOurMcp, removeMcp } from "./mcp-writer.js"
 import { PACKAGE_NAME } from "./servers.js"
 import { runSetup, type SetupResult } from "./setup.js"
 import { removeSkills } from "./skills-installer.js"
-import { banner, done, info, summaryBox } from "./ui.js"
+import { banner, done, info, summaryBox, warn } from "./ui.js"
+
+// Exit codes. 0/1 are the usual; 2 means "we tried but something didn't land"
+// (skills install failed, or every MCP write failed). Scripts can branch on 2.
+const EXIT_PARTIAL = 2
 
 function showHelp(): void {
   banner()
@@ -19,6 +23,10 @@ function showHelp(): void {
   process.stdout.write("    uninstall      Remove the Juspay MCP + skills (both scopes) and sign out\n")
   process.stdout.write("    list           Show which agents have the Juspay MCP, and at which scope\n")
   process.stdout.write("    help           Show this help\n\n")
+  process.stdout.write("  Exit codes:\n")
+  process.stdout.write("    0  success (or user cancel)\n")
+  process.stdout.write("    1  error (unexpected exception)\n")
+  process.stdout.write("    2  partial — every MCP write failed, or the skill install failed\n\n")
 }
 
 // Print next steps: agents that still need a one-time manual auth (no CLI auth
@@ -38,13 +46,20 @@ function nextSteps(result: SetupResult): void {
 }
 
 function printSetupSummary(result: SetupResult): void {
+  // Skills row mirrors the actual install state; previously it was a hardcoded
+  // "integrate" string even when addSkills() had thrown, so the box title and
+  // the warning printed mid-output contradicted each other.
+  const skillsValue = result.skillsInstalled
+    ? "integrate"
+    : pc.red(`failed — ${result.skillsError ?? "see errors above"}`)
   const rows: { label: string; value: string }[] = [
     { label: "Agents", value: result.configured.map((a) => a.label).join(", ") },
     { label: "Scope", value: result.scope === "global" ? "Global (all projects)" : "This project" },
     { label: "MCPs", value: "docs-mcp-server, juspay-mcp" },
-    { label: "Skills", value: "integrate" },
+    { label: "Skills", value: skillsValue },
   ]
-  summaryBox("Setup complete", rows)
+  const title = result.skillsInstalled ? "Setup complete" : "Setup partial — skills not installed"
+  summaryBox(title, rows)
   nextSteps(result)
 }
 
@@ -123,7 +138,16 @@ async function main(): Promise<void> {
   }
   if (!command) {
     const result = await runSetup()
-    if (result.configured.length > 0) printSetupSummary(result)
+    if (result.configured.length > 0) {
+      printSetupSummary(result)
+    } else if (result.attempted > 0) {
+      // User picked agents but every MCP write failed — make sure the failure
+      // is loud (per-agent errors were `info()`-level above, easy to miss).
+      warn("No agents were configured — every write failed. See errors above.")
+    }
+    const partial =
+      (result.attempted > 0 && result.configured.length === 0) || !result.skillsInstalled
+    if (partial) process.exit(EXIT_PARTIAL)
     return
   }
 
