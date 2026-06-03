@@ -3,7 +3,7 @@
 Add Juspay's MCP servers + the `integrate` skill to your AI coding agents — one command, any agent.
 
 ```sh
-npx @sahyll/ai-2
+npx @juspay/cli
 ```
 
 You pick which agents to set up and whether to install **globally** (every project) or **just this project**. The CLI then wires up:
@@ -23,10 +23,10 @@ Only the agents detected on your machine are offered.
 ## Commands
 
 ```sh
-npx @sahyll/ai-2            # pick agents + scope, add the Juspay MCP + skills
-npx @sahyll/ai-2 list       # show which agents are configured, and at which scope
-npx @sahyll/ai-2 uninstall  # remove the MCP + skills (global + project) and sign out
-npx @sahyll/ai-2 help
+npx @juspay/cli            # pick agents + scope, add the Juspay MCP + skills
+npx @juspay/cli list       # show which agents are configured, and at which scope
+npx @juspay/cli uninstall  # remove the MCP + skills (global + project) and sign out
+npx @juspay/cli help
 ```
 
 ## Authenticating the dashboard MCP
