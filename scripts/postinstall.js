@@ -13,6 +13,12 @@ if (underNpx) {
   process.exit(0)
 }
 
+// Read the package name from package.json so the banner can't drift from what
+// `npx <name>` actually resolves to. `createRequire` works on every Node 18+
+// without needing JSON-import-attribute support.
+import { createRequire } from "node:module"
+const pkg = createRequire(import.meta.url)("../package.json")
+
 const RESET = "\x1B[0m"
 const BOLD = "\x1B[1m"
 const CYAN = "\x1B[36m"
@@ -21,7 +27,7 @@ const DIM = "\x1B[2m"
 process.stdout.write(`
   ${BOLD}${CYAN}Juspay for AI agents${RESET} installed.
 
-  Next: run ${BOLD}npx @sahyll/ai-2${RESET} to add the Juspay MCP + skills to your agents.
+  Next: run ${BOLD}npx ${pkg.name}${RESET} to add the Juspay MCP + skills to your agents.
   ${DIM}Each agent signs in to the MCP itself the first time you use it (one-time).${RESET}
 
 `)

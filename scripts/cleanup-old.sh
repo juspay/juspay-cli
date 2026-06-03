@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Juspay AI — clean up EVERYTHING Juspay AI installed (any version of @sahyll/ai /
-# @sahyll/ai-2 and the older @sahyll/juspay-claude), GLOBAL and in the CURRENT
-# PROJECT, so you can run `npx @sahyll/ai-2` from a clean slate. Also signs out of
-# agents that cache OAuth tokens.
+# Juspay AI — clean up EVERYTHING Juspay AI installed (any prior package name:
+# @juspay/cli, @sahyll/ai, @sahyll/ai-2, @sahyll/juspay-claude), GLOBAL and in
+# the CURRENT PROJECT, so you can run `npx @juspay/cli` from a clean slate.
+# Also signs out of agents that cache OAuth tokens.
 #
 # SAFE: only removes Juspay's OWN MCP entries (docs-mcp-server, juspay-mcp,
 # juspay-docs) and the `integrate` skill. Your other MCP servers / settings are
@@ -41,7 +41,7 @@ clean_toml(){
 
 # 1) Global npm packages + commands
 echo "→ Removing global packages…"
-npm rm -g @sahyll/ai @sahyll/ai-2 @sahyll/juspay-claude >/dev/null 2>&1
+npm rm -g @juspay/cli @sahyll/ai @sahyll/ai-2 @sahyll/juspay-claude >/dev/null 2>&1
 hash -r 2>/dev/null
 
 # 2) Stored credentials / config + caches
@@ -96,4 +96,4 @@ find "$HOME" -maxdepth 6 -not -path "*/node_modules/*" -not -path "*/.git/*" \
   | while IFS= read -r f; do clean_json "$f"; done
 
 echo
-echo "✅ Cleanup complete. Install fresh with:  npx @sahyll/ai-2"
+echo "✅ Cleanup complete. Install fresh with:  npx @juspay/cli"
