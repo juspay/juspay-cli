@@ -21,6 +21,13 @@ export type SetupResult = {
   configured: AgentDef[]
   pending: AgentDef[]
   scope: Scope
+  // How many agents the user picked. Lets `main` distinguish "user picked 0"
+  // (return 0) from "user picked N but every write failed" (return 2).
+  attempted: number
+  // True if we never attempted skill install OR attempted and succeeded.
+  // False ONLY when an attempt failed — that's what flips the summary box.
+  skillsInstalled: boolean
+  skillsError?: string
 }
 
 export async function runSetup(): Promise<SetupResult> {
@@ -28,7 +35,7 @@ export async function runSetup(): Promise<SetupResult> {
   if (detected.length === 0) {
     warn("No supported AI agents detected on this machine.")
     info("Install one (claude, codex, gemini, opencode, copilot, cursor, windsurf) and re-run.")
-    return { configured: [], pending: [], scope: "global" }
+    return { configured: [], pending: [], scope: "global", attempted: 0, skillsInstalled: true }
   }
 
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY)
@@ -67,18 +74,27 @@ export async function runSetup(): Promise<SetupResult> {
   }
 
   // 2. Skills — install per EFFECTIVE scope (global-only agents go to global).
-  step("Installing skills...")
-  try {
-    for (const sc of ["project", "global"] as const) {
-      const group = configured.filter((a) => scopeFor(a) === sc)
-      if (group.length > 0) await addSkills(group, sc)
+  // Track outcome on the result so the summary + exit code reflect reality
+  // (previously a failure here was warned but the box still said "complete").
+  let skillsInstalled = true // stays true if there's nothing to install
+  let skillsError: string | undefined
+  if (configured.length > 0) {
+    step("Installing skills...")
+    skillsInstalled = false // about to attempt — flip back to true on success
+    try {
+      for (const sc of ["project", "global"] as const) {
+        const group = configured.filter((a) => scopeFor(a) === sc)
+        if (group.length > 0) await addSkills(group, sc)
+      }
+      skillsInstalled = true
+      done("Skills installed")
+    } catch (err) {
+      skillsError = (err as Error).message
+      warn(`Skills install failed: ${skillsError}`)
     }
-    done("Skills installed")
-  } catch (err) {
-    warn(`Skills install failed: ${(err as Error).message}`)
   }
 
-  return { configured, pending, scope }
+  return { configured, pending, scope, attempted: selected.length, skillsInstalled, skillsError }
 }
 
 async function pickAgents(detected: AgentDef[], interactive: boolean): Promise<AgentDef[]> {
