@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@sahyll/ai-2",
+      "name": "@juspay/cli",
       "devDependencies": {
         "@clack/prompts": "^0.10.0",
         "@types/bun": "latest",
