@@ -11,10 +11,11 @@ import os from "node:os"
 import path from "node:path"
 
 import { type AgentDef, type Scope } from "./agents.js"
-import { SKILLS_PACKAGE } from "./servers.js"
+import { OUR_SKILL_NAMES, SKILLS_PACKAGES } from "./servers.js"
 
-// Skill directory name as deployed by `skills`.
-export const OUR_SKILL = "integrate"
+// Re-export so callers (index.ts summary, etc.) can name the installed skills
+// without reaching into servers.ts directly.
+export { OUR_SKILL_NAMES } from "./servers.js"
 
 export async function addSkills(agents: AgentDef[], scope: Scope): Promise<void> {
   const slugs = [...new Set(agents.map((a) => a.skillsSlug).filter((s): s is string => Boolean(s)))]
@@ -29,15 +30,25 @@ export async function addSkills(agents: AgentDef[], scope: Scope): Promise<void>
   }
   const scopeArgs = scope === "global" ? ["-g"] : []
   const agentArgs = slugs.flatMap((s) => ["-a", s])
-  await runSkills(["add", SKILLS_PACKAGE, ...scopeArgs, "-y", ...agentArgs])
+  // Install each skill in turn. Atomic-fail: if any throws, the loop bubbles
+  // up and setup.ts marks the wizard as partial — better than ending up with
+  // only some of the workflow installed and the rest silently missing.
+  for (const pkg of SKILLS_PACKAGES) {
+    await runSkills(["add", pkg, ...scopeArgs, "-y", ...agentArgs])
+  }
 }
 
-// Best-effort removal from BOTH scopes (uninstall). `skills remove` takes the
-// skill NAME (integrate), not the package path. Returns true if either worked.
+// Best-effort removal from BOTH scopes for every skill. `skills remove` takes
+// the skill NAME, not the package path. Keep going past per-skill failures so
+// uninstall cleans as much as it can. Returns true if anything was removed.
 export async function removeSkills(): Promise<boolean> {
-  const global = await runSkills(["remove", OUR_SKILL, "-g", "-y"]).then(() => true).catch(() => false)
-  const project = await runSkills(["remove", OUR_SKILL, "-y"]).then(() => true).catch(() => false)
-  return global || project
+  let removedAny = false
+  for (const skill of OUR_SKILL_NAMES) {
+    const global = await runSkills(["remove", skill, "-g", "-y"]).then(() => true).catch(() => false)
+    const project = await runSkills(["remove", skill, "-y"]).then(() => true).catch(() => false)
+    if (global || project) removedAny = true
+  }
+  return removedAny
 }
 
 // When our CLI is itself launched via `npx`/`npm exec`, npm pre-populates the

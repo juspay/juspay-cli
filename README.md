@@ -1,6 +1,6 @@
 # Juspay CLI
 
-Add Juspay's MCP servers + the `integrate` skill to your AI coding agents — one command, any agent.
+Add Juspay's MCP servers + the `jp-prd` / `jp-architecture` / `jp-executor` integration skills to your AI coding agents — one command, any agent.
 
 ```sh
 npx @juspay/cli
@@ -9,7 +9,10 @@ npx @juspay/cli
 You pick which agents to set up and whether to install **globally** (every project) or **just this project**. The CLI then wires up:
 
 - **MCP servers** — `docs-mcp-server` (Juspay documentation) and `juspay-mcp` (dashboard: orders, payments, refunds, analytics, …).
-- **Skill** — `integrate`, a guided wizard for integrating Juspay products.
+- **Skills** — a three-step integration workflow:
+  - `jp-prd` — capture *what* the integration must do (PRD).
+  - `jp-architecture` — turn the PRD into a design + task checklist (*how*).
+  - `jp-executor` — implement the integration from the PRD + architecture.
 
 No tokens are stored by this CLI — each agent authenticates the dashboard MCP itself, the first time it's used (in-agent OAuth).
 

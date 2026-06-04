@@ -67,9 +67,13 @@ clean_json "$HOME/Library/Application Support/Code/User/mcp.json"
 clean_toml "$HOME/.codex/config.toml"
 command -v claude >/dev/null 2>&1 && for n in docs-mcp-server juspay-mcp juspay-docs; do claude mcp remove --scope user "$n" >/dev/null 2>&1; done
 command -v codex  >/dev/null 2>&1 && for n in docs-mcp-server juspay-mcp; do codex mcp remove "$n" >/dev/null 2>&1; done
-rm -rf "$HOME/.claude/skills/juspay-explainer" "$HOME/.claude/skills/juspay-integrator" \
-       "$HOME/.claude/skills/integrate" "$HOME/.agents/skills/integrate"
-npx -y skills remove integrate -g -y >/dev/null 2>&1
+# Remove every historical + current skill: old "integrate" + earlier
+# "juspay-explainer"/"juspay-integrator" + the current jp-prd/jp-architecture/
+# jp-executor trio. Safe to no-op when a skill isn't present.
+for s in juspay-explainer juspay-integrator integrate jp-prd jp-architecture jp-executor; do
+  rm -rf "$HOME/.claude/skills/$s" "$HOME/.agents/skills/$s"
+  npx -y skills remove "$s" -g -y >/dev/null 2>&1
+done
 
 # 5) THIS PROJECT (current directory) — configs + skills + now-empty folders
 echo "→ Cleaning this project: $PWD"
@@ -80,9 +84,12 @@ clean_json "$PWD/.cursor/mcp.json"
 clean_json "$PWD/.windsurf/mcp_config.json"
 clean_json "$PWD/.vscode/mcp.json"
 clean_toml "$PWD/.codex/config.toml"
-rm -rf "$PWD/.agents/skills/integrate" "$PWD/.claude/skills/integrate"
+# Same skill list at project scope.
+for s in juspay-explainer juspay-integrator integrate jp-prd jp-architecture jp-executor; do
+  rm -rf "$PWD/.agents/skills/$s" "$PWD/.claude/skills/$s"
+  npx -y skills remove "$s" -y >/dev/null 2>&1
+done
 rm -f  "$PWD/skills-lock.json"
-npx -y skills remove integrate -y >/dev/null 2>&1
 # rmdir only removes EMPTY dirs (safe — keeps .claude if it has settings.local.json, etc.)
 rmdir "$PWD/.agents/skills" "$PWD/.agents" "$PWD/.claude/skills" \
       "$PWD/.codex" "$PWD/.gemini" "$PWD/.cursor" "$PWD/.windsurf" "$PWD/.vscode" 2>/dev/null
