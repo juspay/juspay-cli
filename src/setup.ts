@@ -15,7 +15,7 @@ import { cancel, isCancel, multiselect, select } from "@clack/prompts"
 import { detectAgents, type AgentDef, type Scope } from "./agents.js"
 import { hasOurMcp, writeMcp } from "./mcp-writer.js"
 import { addSkills } from "./skills-installer.js"
-import { done, info, spin, step, warn } from "./ui.js"
+import { info, spin, step, warn } from "./ui.js"
 
 export type SetupResult = {
   configured: AgentDef[]
@@ -87,7 +87,10 @@ export async function runSetup(): Promise<SetupResult> {
         if (group.length > 0) await addSkills(group, sc)
       }
       skillsInstalled = true
-      done("Skills installed")
+      // Per-skill ✓ ticks already convey success, so no redundant "Skills
+      // installed" line. But surface the upstream security note exactly once
+      // — these skills run with the agent's full permissions.
+      warn("Review skills before use — they run with full agent permissions.")
     } catch (err) {
       skillsError = (err as Error).message
       warn(`Skills install failed: ${skillsError}`)

@@ -6,7 +6,7 @@ import { AGENTS, type AgentDef } from "./agents.js"
 import { hasOurMcp, removeMcp } from "./mcp-writer.js"
 import { PACKAGE_NAME } from "./servers.js"
 import { runSetup, type SetupResult } from "./setup.js"
-import { removeSkills } from "./skills-installer.js"
+import { OUR_SKILL_NAMES, removeSkills } from "./skills-installer.js"
 import { banner, done, info, summaryBox, warn } from "./ui.js"
 
 // Exit codes. 0/1 are the usual; 2 means "we tried but something didn't land"
@@ -46,11 +46,11 @@ function nextSteps(result: SetupResult): void {
 }
 
 function printSetupSummary(result: SetupResult): void {
-  // Skills row mirrors the actual install state; previously it was a hardcoded
-  // "integrate" string even when addSkills() had thrown, so the box title and
-  // the warning printed mid-output contradicted each other.
+  // Skills row mirrors the actual install state; previously this was a
+  // hardcoded skill name even when addSkills() had thrown, so the box title
+  // and the warning printed mid-output contradicted each other.
   const skillsValue = result.skillsInstalled
-    ? "integrate"
+    ? OUR_SKILL_NAMES.join(", ")
     : pc.red(`failed — ${result.skillsError ?? "see errors above"}`)
   const rows: { label: string; value: string }[] = [
     { label: "Agents", value: result.configured.map((a) => a.label).join(", ") },
@@ -84,7 +84,7 @@ async function runUninstall(): Promise<void> {
   if (loggedOut.length > 0) done(`Signed out of: ${loggedOut.join(", ")}`)
 
   if (await removeSkills()) done("Removed Juspay skills")
-  else info("• Skills not auto-removed — remove the `integrate` skill from your agents if needed")
+  else info(`• Skills not auto-removed — remove ${OUR_SKILL_NAMES.join(", ")} from your agents if needed`)
 
   process.stdout.write("\n  " + pc.cyan("Juspay removed.") + "\n\n")
 }

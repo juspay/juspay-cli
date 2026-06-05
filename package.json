@@ -1,9 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@juspay/cli",
-  "version": "0.7.0",
+  "version": "0.7.2",
   "description": "Juspay skills + MCP servers for AI coding agents (Claude Code, Codex, Gemini, OpenCode, Cursor, Windsurf, Copilot). One command, any agent.",
-  "repository": { "type": "git", "url": "git+https://github.com/juspay/juspay-cli.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juspay/juspay-cli.git"
+  },
   "homepage": "https://github.com/juspay/juspay-cli#readme",
   "type": "module",
   "bin": {
@@ -35,5 +38,5 @@
     "typescript": "^5.8.0",
     "which": "^5.0.0"
   },
-  "license": "MIT"
+  "license": "Apache-2.0"
 }

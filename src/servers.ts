@@ -13,9 +13,27 @@ export const DOCS_MCP_NAME = "docs-mcp-server"
 export const DASHBOARD_MCP_NAME = "juspay-mcp"
 export const OUR_MCP_NAMES = [DOCS_MCP_NAME, DASHBOARD_MCP_NAME] as const
 
-// Skill package for the `skills` npm CLI: <owner>/<repo>/<path-to-skill>.
-// `npx skills add` deploys it. Update when skills move to a Juspay-owned repo.
-export const SKILLS_PACKAGE = "sahyll/juspay-skills/skills/integrate"
+// The four skills form a sequential workflow:
+//   jp-prd          → capture WHAT the integration must do (PRD)
+//   jp-architecture → turn the PRD into a design + task-checklist (HOW)
+//   jp-executor     → implement the integration from the PRD + architecture
+//   jp-validate     → test/validate the built integration, risk-prioritised
+// Each is a standalone `vercel-labs/skills` package at <owner>/<repo>/<path>.
+// Order in this array = install order (read-friendly in the summary box).
+// RELEASE BLOCKER: move sahyll/juspay-skills → a Juspay-owned repo before
+// publishing to npm — full-permission agent skills shouldn't ship from a
+// personal GitHub.
+export const SKILLS_PACKAGES = [
+  "sahyll/juspay-skills/skills/jp-prd",
+  "sahyll/juspay-skills/skills/jp-architecture",
+  "sahyll/juspay-skills/skills/jp-executor",
+  "sahyll/juspay-skills/skills/jp-validate",
+] as const
+
+// Skill directory names as deployed by the `skills` CLI — i.e. the trailing
+// path segment of each entry above. These are the keys the CLI accepts for
+// `skills remove <name>`. Kept in install order for consistent UI output.
+export const OUR_SKILL_NAMES = ["jp-prd", "jp-architecture", "jp-executor", "jp-validate"] as const
 
 // Single source of truth: name + version come from package.json so a release
 // bump only happens in one place. Bun inlines the JSON at build time; the TS
