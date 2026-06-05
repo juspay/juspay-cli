@@ -12,6 +12,7 @@ import path from "node:path"
 
 import { type AgentDef, type Scope } from "./agents.js"
 import { OUR_SKILL_NAMES, SKILLS_PACKAGES } from "./servers.js"
+import { spin } from "./ui.js"
 
 // Re-export so callers (index.ts summary, etc.) can name the installed skills
 // without reaching into servers.ts directly.
@@ -30,11 +31,21 @@ export async function addSkills(agents: AgentDef[], scope: Scope): Promise<void>
   }
   const scopeArgs = scope === "global" ? ["-g"] : []
   const agentArgs = slugs.flatMap((s) => ["-a", s])
-  // Install each skill in turn. Atomic-fail: if any throws, the loop bubbles
-  // up and setup.ts marks the wizard as partial — better than ending up with
-  // only some of the workflow installed and the rest silently missing.
+  // Install each skill in turn under our own spinner — replaces the upstream
+  // `skills` CLI's per-package ASCII banner + clack boxes (which used to print
+  // ~30 lines × 3 skills). Atomic-fail: if any throws, the loop bubbles up
+  // and setup.ts marks the wizard as partial. runSkills() captures the child's
+  // output and dumps it only on failure, so debug detail is preserved.
   for (const pkg of SKILLS_PACKAGES) {
-    await runSkills(["add", pkg, ...scopeArgs, "-y", ...agentArgs])
+    const name = pkg.split("/").pop() ?? pkg
+    const s = spin(`Installing ${name}...`)
+    try {
+      await runSkills(["add", pkg, ...scopeArgs, "-y", ...agentArgs])
+      s.done(name)
+    } catch (err) {
+      s.fail(name)
+      throw err
+    }
   }
 }
 
@@ -71,12 +82,26 @@ function runSkills(args: string[]): Promise<void> {
     // unambiguous shape of `npx -y skills <args>`. Spelling out `--package`
     // and `--` keeps newer npm argv parsers happy and survives nesting under
     // an outer `npx`. Windows: npm is npm.cmd; spawn needs a shell for .cmd.
+    //
+    // stdio: stdin /dev/null (we pass -y, no prompts), stdout+stderr piped so
+    // we can render our own concise progress upstream and only surface the
+    // child's verbose output if something fails.
     const child = spawn(
       "npm",
       ["exec", "--yes", "--package", "skills", "--", "skills", ...args],
-      { stdio: "inherit", shell: process.platform === "win32", env: scrubbedEnv() },
+      { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32", env: scrubbedEnv() },
     )
+    const buf: Buffer[] = []
+    child.stdout?.on("data", (d) => buf.push(d as Buffer))
+    child.stderr?.on("data", (d) => buf.push(d as Buffer))
     child.on("error", reject)
-    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`skills ${args[0]} exited ${code}`))))
+    child.on("exit", (code) => {
+      if (code === 0) return resolve()
+      // Failure path: dump the child's full output verbatim so the user
+      // (and CI logs) still see exactly what the `skills` CLI would have said.
+      const out = Buffer.concat(buf).toString("utf8")
+      if (out) process.stderr.write(out.endsWith("\n") ? out : out + "\n")
+      reject(new Error(`skills ${args[0]} exited ${code}`))
+    })
   })
 }
