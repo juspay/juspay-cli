@@ -12,7 +12,7 @@ import path from "node:path"
 
 import { type AgentDef, type Scope } from "./agents.js"
 import { OUR_SKILL_NAMES, SKILLS_PACKAGES } from "./servers.js"
-import { spin } from "./ui.js"
+import { spin } from "../../../../core/ui.js"
 
 // Re-export so callers (index.ts summary, etc.) can name the installed skills
 // without reaching into servers.ts directly.
@@ -65,7 +65,7 @@ export async function removeSkills(): Promise<boolean> {
 // When our CLI is itself launched via `npx`/`npm exec`, npm pre-populates the
 // child env with `npm_*` vars + INIT_CWD describing the OUTER invocation. A
 // nested `npx` then misreads them — `npm_config_prefix` leaks, `npm_command=exec`
-// short-circuits, `npm_package_name=@juspay/cli` confuses package resolution.
+// short-circuits, `npm_package_name=juspay` confuses package resolution.
 // Strip them so the inner process sees a fresh-shell env.
 function scrubbedEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env }

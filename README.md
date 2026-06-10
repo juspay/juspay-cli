@@ -1,9 +1,18 @@
 # Juspay CLI
 
-Add Juspay's MCP servers + the `jp-prd` / `jp-architecture` / `jp-executor` / `jp-validate` integration skills to your AI coding agents — one command, any agent.
+The `juspay` command-line tool — payments, checkout, and AI-agent integration tooling.
+
+Today it ships the **`checkout`** product, whose `agent-setup` command adds Juspay's MCP servers + the `jp-prd` / `jp-architecture` / `jp-executor` / `jp-validate` integration skills to your AI coding agents.
 
 ```sh
-npx @juspay/cli
+npx juspay checkout agent-setup
+```
+
+Or install once and run it anywhere:
+
+```sh
+npm i -g juspay
+juspay checkout agent-setup
 ```
 
 You pick which agents to set up and whether to install **globally** (every project) or **just this project**. The CLI then wires up:
@@ -27,11 +36,13 @@ Only the agents detected on your machine are offered.
 ## Commands
 
 ```sh
-npx @juspay/cli            # pick agents + scope, add the Juspay MCP + skills
-npx @juspay/cli list       # show which agents are configured, and at which scope
-npx @juspay/cli uninstall  # remove the MCP + skills (global + project) and sign out
-npx @juspay/cli help
+juspay                                  # show the command list
+juspay checkout agent-setup             # pick agents + scope, add the Juspay MCP + skills
+juspay checkout agent-setup list        # show which agents are configured, and at which scope
+juspay checkout agent-setup uninstall   # remove the MCP + skills (global + project) and sign out
 ```
+
+(Prefix any of these with `npx ` to run without a global install, e.g. `npx juspay checkout agent-setup`.)
 
 ## Authenticating the dashboard MCP
 
@@ -44,12 +55,12 @@ After setup, each agent needs a one-time authentication for `juspay-mcp`:
 
 (`docs-mcp-server` needs no auth.)
 
-## Clean reinstall
+## Clean removal
 
-`scripts/cleanup-old.sh` removes the Juspay MCP + skills from every agent (global **and** project), signs out, and clears caches — handy before a fresh install:
+`juspay checkout agent-setup uninstall` removes the Juspay MCP + skills from every agent (global **and** project) and signs out — handy before a fresh install:
 
 ```sh
-bash scripts/cleanup-old.sh
+npx juspay checkout agent-setup uninstall
 ```
 
 ## License
