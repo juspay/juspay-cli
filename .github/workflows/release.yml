@@ -1,0 +1,58 @@
+name: release
+
+# Publishes `juspay` to npm via npm Trusted Publishing (OIDC) — no npm token.
+# The npm package is configured to trust ONLY this workflow:
+#   publisher: GitHub Actions · org: juspay · repo: juspay-cli
+#   workflow: release.yml · environment: production
+# Triggered by pushing a version tag (vX.Y.Z), or manually via the Actions tab.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # REQUIRED for npm OIDC trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production # matches the trusted-publisher config (can gate on approval)
+    steps:
+      - uses: actions/checkout@v4
+
+      # bun builds the bundle (prepack runs `bun run clean && bun run build`)
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Node provides the npm CLI used to publish; registry-url targets npmjs.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1.
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      # Install devDeps so `bun build` can bundle (commander, picocolors, …).
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # On a tag push, fail fast if the tag doesn't match package.json version.
+      - name: Verify tag matches package version
+        if: github.event_name == 'push'
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag ($TAG_VERSION) != package.json version ($PKG_VERSION)"; exit 1
+          fi
+
+      # No NODE_AUTH_TOKEN: npm authenticates via the OIDC id-token and
+      # generates provenance automatically. `prepack` rebuilds dist first.
+      - name: Publish to npm
+        run: npm publish
