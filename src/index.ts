@@ -1,161 +1,26 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
-import pc from "picocolors"
+/**
+ * Entry point: build the root `juspay` program, construct the shared context,
+ * let every product register its command tree, then parse. No command dispatch
+ * lives here anymore — commander + the product registry own that.
+ */
 
-import { AGENTS, type AgentDef } from "./agents.js"
-import { hasOurMcp, removeMcp } from "./mcp-writer.js"
-import { PACKAGE_NAME } from "./servers.js"
-import { runSetup, type SetupResult } from "./setup.js"
-import { OUR_SKILL_NAMES, removeSkills } from "./skills-installer.js"
-import { banner, done, info, summaryBox, warn } from "./ui.js"
-
-// Exit codes. 0/1 are the usual; 2 means "we tried but something didn't land"
-// (skills install failed, or every MCP write failed). Scripts can branch on 2.
-const EXIT_PARTIAL = 2
-
-function showHelp(): void {
-  banner()
-  process.stdout.write(`  Usage: npx ${PACKAGE_NAME} [command]\n\n`)
-  process.stdout.write(pc.dim("  Detects your AI agents, lets you pick which ones (and global or project),\n"))
-  process.stdout.write(pc.dim("  then adds the Juspay MCP + skills. Each agent authenticates the MCP itself.\n\n"))
-  process.stdout.write("  Commands:\n")
-  process.stdout.write("    (no command)   Pick agents + scope, add the Juspay MCP + skills\n")
-  process.stdout.write("    uninstall      Remove the Juspay MCP + skills (both scopes) and sign out\n")
-  process.stdout.write("    list           Show which agents have the Juspay MCP, and at which scope\n")
-  process.stdout.write("    help           Show this help\n\n")
-  process.stdout.write("  Exit codes:\n")
-  process.stdout.write("    0  success (or user cancel)\n")
-  process.stdout.write("    1  error (unexpected exception)\n")
-  process.stdout.write("    2  partial — every MCP write failed, or the skill install failed\n\n")
-}
-
-// Print next steps: agents that still need a one-time manual auth (no CLI auth
-// command, auth failed, or non-interactive). Already-authed / already-configured
-// agents are not nagged.
-function nextSteps(result: SetupResult): void {
-  process.stdout.write("\n  " + pc.bold("Next steps") + "\n")
-  if (result.pending.length > 0) {
-    process.stdout.write("  " + pc.dim("Authenticate the Juspay MCP in these (one-time):") + "\n")
-    for (const a of result.pending) {
-      process.stdout.write("    " + pc.dim(`• ${a.label}: `) + a.authHint + "\n")
-    }
-  } else {
-    process.stdout.write("  " + pc.dim("All set — your agents are configured.") + "\n")
-  }
-  process.stdout.write("\n  " + pc.dim("Remove everything: ") + pc.cyan(`npx ${PACKAGE_NAME} uninstall`) + "\n\n")
-}
-
-function printSetupSummary(result: SetupResult): void {
-  // Skills row mirrors the actual install state; previously this was a
-  // hardcoded skill name even when addSkills() had thrown, so the box title
-  // and the warning printed mid-output contradicted each other.
-  const skillsValue = result.skillsInstalled
-    ? OUR_SKILL_NAMES.join(", ")
-    : pc.red(`failed — ${result.skillsError ?? "see errors above"}`)
-  const rows: { label: string; value: string }[] = [
-    { label: "Agents", value: result.configured.map((a) => a.label).join(", ") },
-    { label: "Scope", value: result.scope === "global" ? "Global (all projects)" : "This project" },
-    { label: "MCPs", value: "docs-mcp-server, juspay-mcp" },
-    { label: "Skills", value: skillsValue },
-  ]
-  const title = result.skillsInstalled ? "Setup complete" : "Setup partial — skills not installed"
-  summaryBox(title, rows)
-  nextSteps(result)
-}
-
-async function runUninstall(): Promise<void> {
-  const removedAgents: AgentDef[] = []
-  for (const a of AGENTS) {
-    let removedAny = false
-    for (const scope of ["global", "project"] as const) {
-      if (await removeMcp(a, scope).catch(() => false)) removedAny = true
-    }
-    if (removedAny) removedAgents.push(a)
-  }
-  if (removedAgents.length > 0) done(`Removed Juspay MCP from: ${removedAgents.map((a) => a.label).join(", ")}`)
-  else info("• No Juspay MCP entries found")
-
-  // Sign out of agents that cache OAuth creds (best-effort; clears their tokens).
-  const loggedOut: string[] = []
-  for (const a of removedAgents) {
-    if (!a.logoutCmd) continue
-    if (await runCmdQuiet(a.logoutCmd)) loggedOut.push(a.label)
-  }
-  if (loggedOut.length > 0) done(`Signed out of: ${loggedOut.join(", ")}`)
-
-  if (await removeSkills()) done("Removed Juspay skills")
-  else info(`• Skills not auto-removed — remove ${OUR_SKILL_NAMES.join(", ")} from your agents if needed`)
-
-  process.stdout.write("\n  " + pc.cyan("Juspay removed.") + "\n\n")
-}
-
-// Run a command silently, best-effort. Resolves true on exit 0, false otherwise.
-function runCmdQuiet(cmd: string[]): Promise<boolean> {
-  return new Promise((resolve) => {
-    const [bin, ...args] = cmd
-    // Windows: agent CLIs are .cmd shims; spawn needs a shell to launch them.
-    const child = spawn(bin, args, { stdio: "ignore", shell: process.platform === "win32" })
-    child.on("error", () => resolve(false))
-    child.on("exit", (code) => resolve(code === 0))
-  })
-}
-
-async function runList(): Promise<void> {
-  const found: string[] = []
-  for (const a of AGENTS) {
-    const scopes: string[] = []
-    for (const scope of ["global", "project"] as const) {
-      if (await hasOurMcp(a, scope)) scopes.push(scope)
-    }
-    if (scopes.length > 0) found.push(`${a.label} (${scopes.join(", ")})`)
-  }
-  if (found.length === 0) {
-    process.stdout.write("  " + pc.yellow("⚠ ") + `No agents configured. Run \`npx ${PACKAGE_NAME}\`.\n`)
-    return
-  }
-  process.stdout.write("  " + pc.cyan("Juspay MCP is configured in:") + "\n")
-  for (const label of found) process.stdout.write(`    • ${label}\n`)
-}
+import { buildRootProgram } from "./cli/program.js"
+import { PRODUCTS } from "./cli/registry.js"
+import type { CliContext } from "./cli/types.js"
+import { fatal } from "./core/errors.js"
+import * as ui from "./core/ui.js"
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  const command = args[0]
+  const program = buildRootProgram()
+  const ctx: CliContext = { ui }
+  for (const p of PRODUCTS) p.register(program, ctx)
 
-  if (command === "help" || command === "--help" || command === "-h") {
-    showHelp()
-    return
+  // Bare `juspay` (no product/command) → show the command list, run nothing.
+  if (process.argv.length <= 2) {
+    program.help()
   }
-
-  banner()
-
-  if (command === "uninstall") {
-    await runUninstall()
-    return
-  }
-  if (command === "list") {
-    await runList()
-    return
-  }
-  if (!command) {
-    const result = await runSetup()
-    if (result.configured.length > 0) {
-      printSetupSummary(result)
-    } else if (result.attempted > 0) {
-      // User picked agents but every MCP write failed — make sure the failure
-      // is loud (per-agent errors were `info()`-level above, easy to miss).
-      warn("No agents were configured — every write failed. See errors above.")
-    }
-    const partial =
-      (result.attempted > 0 && result.configured.length === 0) || !result.skillsInstalled
-    if (partial) process.exit(EXIT_PARTIAL)
-    return
-  }
-
-  throw new Error(`Unknown command '${command}'. Run \`npx ${PACKAGE_NAME} help\`.`)
+  await program.parseAsync(process.argv)
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err)
-  process.stderr.write(pc.red("✗ ") + message + "\n")
-  process.exit(1)
-})
+main().catch(fatal)

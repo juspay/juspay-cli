@@ -1,4 +1,4 @@
-import pkg from "../package.json" with { type: "json" }
+import pkg from "../../../../../package.json" with { type: "json" }
 
 // Juspay MCP resource endpoints. Both are remote streamable-HTTP MCP servers.
 // The dashboard server requires auth, but the AGENT performs its own OAuth
@@ -20,14 +20,12 @@ export const OUR_MCP_NAMES = [DOCS_MCP_NAME, DASHBOARD_MCP_NAME] as const
 //   jp-validate     → test/validate the built integration, risk-prioritised
 // Each is a standalone `vercel-labs/skills` package at <owner>/<repo>/<path>.
 // Order in this array = install order (read-friendly in the summary box).
-// RELEASE BLOCKER: move sahyll/juspay-skills → a Juspay-owned repo before
-// publishing to npm — full-permission agent skills shouldn't ship from a
-// personal GitHub.
+// Served from the Juspay-owned repo github.com/juspay/merchant-skills.
 export const SKILLS_PACKAGES = [
-  "sahyll/juspay-skills/skills/jp-prd",
-  "sahyll/juspay-skills/skills/jp-architecture",
-  "sahyll/juspay-skills/skills/jp-executor",
-  "sahyll/juspay-skills/skills/jp-validate",
+  "juspay/merchant-skills/skills/jp-prd",
+  "juspay/merchant-skills/skills/jp-architecture",
+  "juspay/merchant-skills/skills/jp-executor",
+  "juspay/merchant-skills/skills/jp-validate",
 ] as const
 
 // Skill directory names as deployed by the `skills` CLI — i.e. the trailing
@@ -41,8 +39,6 @@ export const OUR_SKILL_NAMES = ["jp-prd", "jp-architecture", "jp-executor", "jp-
 export const PACKAGE_NAME = pkg.name
 export const CLI_VERSION = pkg.version
 
-// User-Agent tokens (RFC 7231) can't contain '/' or '@', so strip the npm scope
-// before composing the UA. "@juspay/cli" → "cli/0.7.0 (+…)" would be ambiguous,
-// so fall back to "juspay-cli" when the name is scoped.
-const UA_NAME = pkg.name.startsWith("@") ? pkg.name.slice(1).replace("/", "-") : pkg.name
-export const USER_AGENT = `${UA_NAME}/${CLI_VERSION} (+https://juspay.in)`
+// User-Agent token (RFC 7231). The package is published unscoped as "juspay",
+// so the name is already a valid UA token — no scope-stripping needed.
+export const USER_AGENT = `${PACKAGE_NAME}/${CLI_VERSION} (+https://juspay.in)`

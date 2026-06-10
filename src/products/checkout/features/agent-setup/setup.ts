@@ -15,7 +15,7 @@ import { cancel, isCancel, multiselect, select } from "@clack/prompts"
 import { detectAgents, type AgentDef, type Scope } from "./agents.js"
 import { hasOurMcp, writeMcp } from "./mcp-writer.js"
 import { addSkills } from "./skills-installer.js"
-import { info, spin, step, warn } from "./ui.js"
+import { info, spin, step, warn } from "../../../../core/ui.js"
 
 export type SetupResult = {
   configured: AgentDef[]

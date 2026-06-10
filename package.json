@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@juspay/cli",
-  "version": "0.7.2",
-  "description": "Juspay skills + MCP servers for AI coding agents (Claude Code, Codex, Gemini, OpenCode, Cursor, Windsurf, Copilot). One command, any agent.",
+  "name": "juspay",
+  "version": "0.8.0",
+  "description": "Juspay CLI — payments, checkout, and AI-agent integration tooling. Add Juspay MCP servers + integration skills to your AI coding agents (Claude Code, Codex, Gemini, OpenCode, Cursor, Windsurf, Copilot).",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/juspay/juspay-cli.git"
@@ -17,12 +17,10 @@
     "build": "bun build src/index.ts --target=node --outfile=dist/index.js",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "prepack": "bun run clean && bun run build",
-    "postinstall": "node scripts/postinstall.js"
+    "prepack": "bun run clean && bun run build"
   },
   "files": [
     "dist",
-    "scripts",
     "LICENSE"
   ],
   "engines": {
@@ -33,6 +31,7 @@
     "@types/bun": "latest",
     "@types/node": "^22.0.0",
     "@types/which": "^3.0.4",
+    "commander": "^15.0.0",
     "picocolors": "^1.1.1",
     "smol-toml": "^1.3.0",
     "typescript": "^5.8.0",
