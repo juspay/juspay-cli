@@ -135,6 +135,32 @@ export function summaryBox(title: string, rows: SummaryRow[]): void {
   process.stdout.write(bottom + "\n")
 }
 
+/**
+ * Render a rounded box with a title and arbitrary pre-formatted lines (already
+ * colored by the caller). Unlike summaryBox, lines aren't ✓-prefixed — use this
+ * for prose + command hints. An empty-string line renders as a blank spacer row.
+ */
+export function panel(title: string, lines: string[]): void {
+  const widest = Math.max(visibleLen(title) + 2, ...lines.map(visibleLen))
+  const innerWidth = Math.max(widest + 4, 48)
+
+  // After ╭ the header is "─ " (2) + title + " " (1) + dashes, which must total
+  // innerWidth → dashes = innerWidth - title - 3 (keeps ╮ aligned with ╰).
+  const top = "  " + pc.dim("╭─ ") + pc.bold(title) + " " + pc.dim("─".repeat(Math.max(0, innerWidth - visibleLen(title) - 3))) + pc.dim("╮")
+  const empty = "  " + pc.dim("│") + " ".repeat(innerWidth) + pc.dim("│")
+  const bottom = "  " + pc.dim("╰" + "─".repeat(innerWidth) + "╯")
+
+  process.stdout.write("\n")
+  process.stdout.write(top + "\n")
+  process.stdout.write(empty + "\n")
+  for (const line of lines) {
+    const pad = " ".repeat(Math.max(0, innerWidth - visibleLen(line) - 4))
+    process.stdout.write("  " + pc.dim("│") + "  " + line + pad + "  " + pc.dim("│") + "\n")
+  }
+  process.stdout.write(empty + "\n")
+  process.stdout.write(bottom + "\n")
+}
+
 export function footer(primaryHint: string, otherCommands: string[]): void {
   process.stdout.write("\n")
   process.stdout.write("  " + primaryHint + "\n")
