@@ -1,10 +1,14 @@
 /**
- * `juspay checkout agent` — drop the user straight into a ready-to-go OpenCode
- * session that's already authenticated with Juspay and wired with the jp-* skills,
- * the docs + dashboard MCP servers, and the Juspay agent + model (wrapper plan).
+ * `juspay checkout agent` — drop the user into a ready-to-go OpenCode session
+ * wired with the jp-* skills, the docs + dashboard MCP servers, and two Juspay
+ * agents (integrate / explain) on OpenCode's free model (wrapper plan).
  *
- *   ensureAuth() → install jp-* skills (global, once) → provision inline config →
- *   launch OpenCode (token via env, nothing persisted to the user's setup)
+ *   consent + sign-in choice → (optional auth) → install jp-* skills (global,
+ *   once) → provision inline config → install OpenCode → launch (config + any
+ *   token via env, nothing persisted to the user's setup)
+ *
+ * Sign-in is optional: when signed in, the dashboard MCP is pre-authenticated via
+ * the token; when skipped, it's URL-only and OpenCode authenticates it in-session.
  *
  * Plus the `auth login | logout | whoami` wrappers (plan §10.4): the *surface*
  * mounts under the product, but the *implementation* lives in shared/auth so a
@@ -20,6 +24,7 @@ import os from "node:os"
 import path from "node:path"
 import readline from "node:readline"
 
+import { cancel, isCancel, select } from "@clack/prompts"
 import type { Command } from "commander"
 import pc from "picocolors"
 
@@ -108,7 +113,8 @@ export function registerAgent(parent: Command, ctx: CliContext): void {
   const agent = parent
     .command("agent")
     .description("Launch Juspay's pre-configured OpenCode agent (auth + skills + MCP, in one command)")
-    .action(() => runAgent(ctx))
+    .option("--skip-auth", "launch without Juspay sign-in (authenticate the dashboard MCP inside OpenCode instead)")
+    .action((opts: { skipAuth?: boolean }) => runAgent(ctx, opts))
   agent
     .command("uninstall")
     .description("Remove everything `agent` set up: sign out + revoke, delete the jp-* skills, and remove the auto-installed OpenCode")
@@ -131,58 +137,103 @@ export function registerAgent(parent: Command, ctx: CliContext): void {
     .action(() => runWhoami(ctx))
 }
 
-async function runAgent(ctx: CliContext): Promise<void> {
+async function runAgent(ctx: CliContext, opts: { skipAuth?: boolean }): Promise<void> {
   ctx.ui.banner()
 
-  // 1. Auth gate — browser flow only if there's no token valid >24h out.
-  const { tokens, identity } = await ensureAuth()
+  // 1. Choice upfront: sign in now (pre-authenticate the dashboard MCP), or skip
+  // and let OpenCode authenticate the dashboard MCP itself (like agent-setup).
+  const login = await decideLogin(opts)
 
-  // 2. Skills — install the jp-* set globally, once (idempotent). Reuses
+  // 2. Auth gate (only if signing in) — browser flow if no token valid >24h out.
+  let identity: Identity | null = null
+  let token: string | undefined
+  if (login) {
+    const res = await ensureAuth()
+    identity = res.identity
+    token = res.tokens.access_token
+  }
+
+  // 3. Skills — install the jp-* set globally, once (idempotent). Reuses
   // agent-setup's installer; OpenCode discovers them from its global skills dirs.
   await ensureSkills(ctx)
 
-  // 3. Ensure the OpenCode binary (auto-install if missing) BEFORE we announce the
-  // launch — so any "Installing OpenCode…" output never appears under "Launching…".
-  const opencode = await ensureOpencode()
-
-  // 4. Provision the inline session config (nothing written to disk).
+  // 4. Provision the inline session config (nothing written to disk). When signed
+  // in, the dashboard MCP is pre-authenticated via the token header; when skipped,
+  // it's URL-only and OpenCode handles its OAuth in-session.
   const mcp: Record<string, McpServer> = {
-    [DOCS_MCP_NAME]: { url: DOCS_MCP_ENDPOINT }, // unauthenticated
-    [DASHBOARD_MCP_NAME]: { url: JUSPAY_MCP_ENDPOINT, authenticated: true }, // pre-auth'd via token
+    [DOCS_MCP_NAME]: { url: DOCS_MCP_ENDPOINT }, // unauthenticated either way
+    [DASHBOARD_MCP_NAME]: { url: JUSPAY_MCP_ENDPOINT, authenticated: login },
   }
   const provisioned = provision({
-    token: tokens.access_token,
+    token,
     model: MODEL,
     agents: [INTEGRATE_AGENT, EXPLAIN_AGENT],
     defaultAgent: DEFAULT_AGENT,
     mcp,
   })
 
-  // 5. Show what we're launching, wait for the user to read it (OpenCode's TUI
-  // takes over the whole screen), then hand off. On exit, control returns to the
-  // shell with our banner back in scrollback.
+  // 5. Show what we're launching + the third-party notice, then gate the install +
+  // launch behind an explicit keypress (the consent). OpenCode's TUI takes over the
+  // whole screen; on exit control returns to the shell with our banner in scrollback.
   printLaunchSummary(ctx, identity)
-  await waitToLaunch(ctx)
+  await confirmAndProceed(ctx)
+
+  // 6. Install OpenCode if missing (after consent), then hand off.
+  const opencode = await ensureOpencode()
   await launchOpencode(opencode, provisioned)
 }
 
-// Gate the TUI takeover behind an explicit keypress so the banner is readable.
-// Non-interactive (CI / no TTY): skip the prompt and launch right away.
-function waitToLaunch(ctx: CliContext): Promise<void> {
+// Third-party disclosure + the launch gate. The dim notice keeps OpenCode's
+// independence + Juspay's non-liability visible (every run — always disclosed),
+// and the Enter press IS the consent to install + run it. Non-interactive
+// (CI / no TTY): the notice still prints and we proceed.
+function confirmAndProceed(ctx: CliContext): Promise<void> {
+  process.stdout.write("\n")
+  ctx.ui.info("OpenCode is an open-source, third-party coding tool (opencode.ai) with its")
+  ctx.ui.info("own free model. Juspay sets it up but isn't responsible for the tool/model.")
+
   if (!process.stdin.isTTY) {
-    ctx.ui.step("Launching OpenCode...")
+    ctx.ui.step("Setting up & launching OpenCode...")
     return Promise.resolve()
   }
   return new Promise<void>((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
     rl.question(
-      "\n  " + pc.cyan("▸ ") + "Press Enter to launch OpenCode " + pc.dim("(Ctrl+C to cancel)") + " ",
+      "\n  " + pc.cyan("▸ ") + "Press Enter to install & launch OpenCode " + pc.dim("(Ctrl+C to cancel)") + " ",
       () => {
         rl.close()
         resolve()
       },
     )
   })
+}
+
+// Sign-in choice. `--skip-auth` forces skip; non-interactive defaults to signing
+// in (preserves prior behaviour); interactive prompts with the two options.
+async function decideLogin(opts: { skipAuth?: boolean }): Promise<boolean> {
+  if (opts.skipAuth) return false
+  if (!process.stdin.isTTY) return true
+  const choice = await select({
+    message: "Sign in to Juspay?",
+    options: [
+      {
+        value: "login",
+        label: "Sign in (recommended)",
+        hint: "pre-authenticates the dashboard MCP + identifies your merchant",
+      },
+      {
+        value: "skip",
+        label: "Skip for now",
+        hint: "authenticate the dashboard MCP inside OpenCode instead",
+      },
+    ],
+    initialValue: "login",
+  })
+  if (isCancel(choice)) {
+    cancel("Cancelled.")
+    process.exit(0)
+  }
+  return choice === "login"
 }
 
 // True once all four jp-* skills are present in any of OpenCode's global skills
@@ -205,15 +256,14 @@ async function ensureSkills(ctx: CliContext): Promise<void> {
   const opencode = findAgent("opencode")
   if (!opencode) return // registry change; nothing to target
   if (await skillsInstalled()) return
-  ctx.ui.step("Setting up your Juspay agent (skills + MCP)...")
+  ctx.ui.step("Installing Juspay skills...")
   await addSkills([opencode], "global")
 }
 
-function printLaunchSummary(ctx: CliContext, identity: Identity): void {
+function printLaunchSummary(ctx: CliContext, identity: Identity | null): void {
   // No technical inventory here — the user is about to be inside the TUI. Say what
-  // this is (Juspay-wrapped OpenCode), the two agents they can switch between, and
-  // how to manage the session.
-  ctx.ui.panel("Juspay × OpenCode", [
+  // this is (Juspay-wrapped OpenCode), the two agents, and the session/auth state.
+  const lines: string[] = [
     pc.dim("OpenCode — the open-source coding CLI — pre-configured with"),
     pc.dim("Juspay for payments integration, on OpenCode's free model."),
     "",
@@ -221,11 +271,29 @@ function printLaunchSummary(ctx: CliContext, identity: Identity): void {
     "  " + pc.bold("juspay-integrate") + pc.dim("  build the integration (edits code)"),
     "  " + pc.bold("juspay-explain") + pc.dim("    answer Juspay questions (read-only)"),
     "",
-    pc.dim("Signed in    ") + pc.bold(identity.merchant_id) + pc.dim(`  (${identity.environment})`),
-    "",
-    pc.dim("Switch login ") + pc.cyan("juspay checkout auth login"),
-    pc.dim("Sign out     ") + pc.cyan("juspay checkout auth logout"),
-  ])
+  ]
+
+  if (identity) {
+    lines.push(
+      pc.dim("Signed in    ") + pc.bold(identity.merchant_id) + pc.dim(`  (${identity.environment})`),
+      "",
+      pc.dim("Switch login ") + pc.cyan("juspay checkout auth login"),
+      pc.dim("Sign out     ") + pc.cyan("juspay checkout auth logout"),
+    )
+  } else {
+    // Skipped sign-in: the docs MCP works as-is; the dashboard MCP needs a one-time
+    // OAuth inside OpenCode (same hint agent-setup gives for OpenCode).
+    const hint = findAgent("opencode")?.authHint
+    lines.push(
+      pc.yellow("Not signed in") + pc.dim(" — the docs MCP works now; authenticate the"),
+      pc.dim("dashboard MCP inside OpenCode:"),
+      ...(hint ? ["  " + pc.cyan(hint)] : []),
+      "",
+      pc.dim("Sign in later ") + pc.cyan("juspay checkout auth login"),
+    )
+  }
+
+  ctx.ui.panel("Juspay × OpenCode", lines)
 }
 
 async function runLogin(ctx: CliContext, opts: { force?: boolean }): Promise<void> {
@@ -263,10 +331,11 @@ async function runAgentUninstall(ctx: CliContext): Promise<void> {
   if (await removeSkills()) ctx.ui.done(`Removed Juspay skills: ${OUR_SKILL_NAMES.join(", ")}`)
   else ctx.ui.info("• No Juspay skills found to remove")
 
-  // 3. Remove the OpenCode install we created (~/.opencode). A brew/npm opencode
-  // elsewhere is left untouched.
-  if (await removeOpencode()) ctx.ui.done("Removed OpenCode (~/.opencode)")
-  else ctx.ui.info("• OpenCode wasn't installed by us (~/.opencode absent) — left untouched")
+  // 3. Remove the OpenCode install we created (the official-installer ~/.opencode
+  // on macOS/Linux, or the npm-global package on Windows). A pre-existing
+  // brew/manual opencode on unix is left untouched.
+  if (await removeOpencode()) ctx.ui.done("Removed the auto-installed OpenCode")
+  else ctx.ui.info("• OpenCode wasn't installed by us — left untouched")
 
   ctx.ui.info("MCP servers are provisioned in-memory at launch — nothing persisted to remove.")
   process.stdout.write("\n  " + pc.cyan("Juspay agent removed.") + "\n\n")
