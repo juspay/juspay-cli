@@ -53,12 +53,16 @@ function vscodeUserMcp(): string {
 }
 
 // --- per-agent entry shapes (URL only; the agent self-authenticates) ---
-const httpType = (url: string) => ({ type: "http", url }) // Claude, Copilot, VS Code
+const httpType = (url: string) => ({ type: "http", url }) // Claude, VS Code
+// GitHub Copilot CLI requires `tools` on every HTTP server (type + url + tools are
+// all required). Without it the server is written but stays "stopped" with no tools
+// and no start control. "*" = expose all tools. CLI-only — Claude/VS Code reject it.
+const copilotHttp = (url: string) => ({ type: "http", url, tools: ["*"] })
 const urlOnly = (url: string) => ({ url }) // Cursor
 const codexEntry = (url: string) => ({ url, enabled: true }) // Codex (TOML)
 const httpUrlField = (url: string) => ({ httpUrl: url }) // Gemini
 const opencodeRemote = (url: string) => ({ type: "remote", url, enabled: true }) // OpenCode
-const windsurfUrl = (url: string) => ({ serverUrl: url }) // Windsurf
+const serverUrlEntry = (url: string) => ({ serverUrl: url }) // Windsurf, Antigravity
 
 export const AGENTS: AgentDef[] = [
   {
@@ -117,13 +121,13 @@ export const AGENTS: AgentDef[] = [
   },
   {
     id: "copilot",
-    label: "GitHub Copilot CLI",
+    label: "GitHub Copilot CLI (terminal)",
     globalPath: path.join(HOME, ".copilot", "mcp-config.json"),
     projectPath: ".mcp.json",
     globalOnly: true, // Copilot doesn't read workspace (project) MCP config
     format: "json",
     containerKey: "mcpServers",
-    entry: httpType,
+    entry: copilotHttp, // CLI needs `tools` on each server (see copilotHttp)
     skillsSlug: "github-copilot",
     authHint: "in-app (note: Copilot remote-MCP OAuth is currently limited)",
     bin: "copilot",
@@ -148,14 +152,33 @@ export const AGENTS: AgentDef[] = [
     projectPath: path.join(".windsurf", "mcp_config.json"),
     format: "json",
     containerKey: "mcpServers",
-    entry: windsurfUrl,
+    entry: serverUrlEntry,
     skillsSlug: "windsurf",
     authHint: "Windsurf prompts to authenticate in its MCP panel",
     homeMarkers: [".codeium", ".windsurf"],
   },
   {
+    id: "antigravity",
+    label: "Antigravity",
+    // Antigravity's MCP config is global only: ~/.gemini/config/mcp_config.json
+    // (no per-project MCP file). It uses the `serverUrl` field and handles the
+    // dashboard MCP's OAuth itself via DCR — so we write URL only, no token.
+    globalPath: path.join(HOME, ".gemini", "config", "mcp_config.json"),
+    projectPath: path.join(".gemini", "config", "mcp_config.json"), // unused (globalOnly)
+    globalOnly: true,
+    format: "json",
+    containerKey: "mcpServers",
+    entry: serverUrlEntry,
+    // `skills` CLI supports Antigravity natively (--agent antigravity): project →
+    // .agents/skills/ (read by Antigravity), global → ~/.gemini/antigravity/skills/.
+    skillsSlug: "antigravity",
+    authHint: "Antigravity authenticates the dashboard MCP in Settings → Customizations",
+    bin: "antigravity",
+    homeMarkers: [path.join(".gemini", "antigravity")],
+  },
+  {
     id: "vscode",
-    label: "VS Code / Copilot",
+    label: "GitHub Copilot (VS Code)",
     globalPath: vscodeUserMcp(),
     projectPath: path.join(".vscode", "mcp.json"),
     globalOnly: true, // configured at user scope, not per-project
