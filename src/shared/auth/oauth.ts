@@ -230,10 +230,25 @@ function captureCode(
 }
 
 function openBrowser(url: string): void {
-  const cmd =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open"
-  const args = process.platform === "win32" ? ["", url] : [url]
-  spawn(cmd, args, { stdio: "ignore", detached: true, shell: process.platform === "win32" }).unref()
+  // Open the URL with NO shell, passing it as a single argument so query-string
+  // characters survive intact. On Windows we must NOT use the cmd.exe `start`
+  // builtin: cmd splits the URL at `&` (command separator) and mangles `%xx`
+  // percent-encoding, so the browser would get a truncated authorize URL with no
+  // redirect_uri (→ "redirect_uri is required"). rundll32 receives the URL as one
+  // verbatim argv entry and hands it to the default browser unmodified.
+  let cmd: string
+  let args: string[]
+  if (process.platform === "darwin") {
+    cmd = "open"
+    args = [url]
+  } else if (process.platform === "win32") {
+    cmd = "rundll32"
+    args = ["url.dll,FileProtocolHandler", url]
+  } else {
+    cmd = "xdg-open"
+    args = [url]
+  }
+  spawn(cmd, args, { stdio: "ignore", detached: true }).unref()
 }
 
 async function fetchJson(url: string, init?: RequestInit): Promise<any> {

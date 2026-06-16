@@ -55,8 +55,9 @@ export type AgentSpec = {
 
 export type ProvisionInput = {
   // The OAuth bearer from shared/auth — injected into MCP headers via the env var
-  // (not embedded in the config text).
-  token: string
+  // (not embedded in the config text). Omitted when the user skips sign-in; then
+  // no MCP server should be marked `authenticated` and OpenCode self-auths instead.
+  token?: string
   // Fully-qualified model id, e.g. "opencode/big-pickle".
   model: string
   agents: AgentSpec[]
@@ -102,6 +103,8 @@ export function provision(input: ProvisionInput): Provisioned {
 
   return {
     configContent: JSON.stringify(config),
-    env: { [TOKEN_ENV_VAR]: input.token },
+    // Only export the token when we have one (sign-in path). In skip mode there's
+    // no token and no authenticated MCP header to resolve it.
+    env: input.token ? { [TOKEN_ENV_VAR]: input.token } : {},
   }
 }

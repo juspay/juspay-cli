@@ -16,7 +16,7 @@
 import { spawn } from "node:child_process"
 import path from "node:path"
 
-import type { OpencodeInfo } from "./detect.js"
+import { binCommand, type OpencodeInfo } from "./detect.js"
 import type { Provisioned } from "./provision.js"
 
 // Spawn an already-resolved opencode binary. Callers ensure it exists first (so
@@ -33,9 +33,13 @@ function run(info: OpencodeInfo, provisioned: Provisioned): Promise<never> {
     const binDir = path.dirname(info.bin)
     const PATH = [binDir, process.env.PATH].filter(Boolean).join(path.delimiter)
 
-    const child = spawn(info.bin, [], {
+    // Spawn the binary cross-platform (Windows `.cmd` shim needs a shell + quoted
+    // path; elsewhere it's a real binary spawned directly).
+    const { command, shell } = binCommand(info.bin)
+    const child = spawn(command, [], {
       stdio: "inherit",
       cwd: process.cwd(),
+      shell,
       env: {
         ...process.env,
         PATH,
