@@ -21,13 +21,18 @@ import {
   JUSPAY_MCP_ENDPOINT,
   OUR_MCP_NAMES,
 } from "./servers.js"
+import { analyticsEnabled, getInstallId, mcpAnalyticsHeaders } from "../../../../shared/analytics/index.js"
 
 // Write our two MCP servers into the agent's config for `scope`.
 export async function writeMcp(agent: AgentDef, scope: Scope): Promise<void> {
   const file = configFileFor(agent, scope)
+  // Tag both servers with the durable install id so the backend can attribute MCP
+  // hits to this machine's journey (time-sensitized into sessions on the direct
+  // path). Opt-out (analyticsEnabled=false) writes plain URL-only entries as before.
+  const headers = analyticsEnabled() ? mcpAnalyticsHeaders(await getInstallId()) : undefined
   const entries: Record<string, unknown> = {
-    [DOCS_MCP_NAME]: agent.entry(DOCS_MCP_ENDPOINT),
-    [DASHBOARD_MCP_NAME]: agent.entry(JUSPAY_MCP_ENDPOINT),
+    [DOCS_MCP_NAME]: agent.entry(DOCS_MCP_ENDPOINT, headers),
+    [DASHBOARD_MCP_NAME]: agent.entry(JUSPAY_MCP_ENDPOINT, headers),
   }
 
   await fs.mkdir(path.dirname(file), { recursive: true })
