@@ -15,8 +15,8 @@ import pc from "picocolors"
 
 import type { CliContext } from "../../../cli/types.js"
 import { EXIT_PARTIAL } from "../../../core/errors.js"
-import { AGENTS, type AgentDef } from "../features/agent-setup/agents.js"
-import { hasOurMcp, removeMcp } from "../features/agent-setup/mcp-writer.js"
+import { AGENTS, hasOurMcp, type AgentDef } from "../../../shared/agents/index.js"
+import { removeMcp } from "../features/agent-setup/mcp-writer.js"
 import { runSetup, type SetupResult } from "../features/agent-setup/setup.js"
 import { OUR_SKILL_NAMES, removeSkills } from "../features/agent-setup/skills-installer.js"
 

@@ -10,13 +10,12 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
-import { type AgentDef, type Scope } from "./agents.js"
-import { OUR_SKILL_NAMES, SKILLS_PACKAGES } from "./servers.js"
+import { OUR_SKILL_NAMES, SKILLS_PACKAGES, type AgentDef, type Scope } from "../../../../shared/agents/index.js"
 import { spin } from "../../../../core/ui.js"
 
 // Re-export so callers (index.ts summary, etc.) can name the installed skills
 // without reaching into servers.ts directly.
-export { OUR_SKILL_NAMES } from "./servers.js"
+export { OUR_SKILL_NAMES } from "../../../../shared/agents/index.js"
 
 export async function addSkills(agents: AgentDef[], scope: Scope): Promise<void> {
   const slugs = [...new Set(agents.map((a) => a.skillsSlug).filter((s): s is string => Boolean(s)))]

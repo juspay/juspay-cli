@@ -31,7 +31,7 @@ export type AgentDef = {
   globalOnly?: boolean // only works at user scope (e.g. Copilot, VS Code) — always global
   format: ConfigFormat
   containerKey: string // "mcpServers" | "mcp" | "servers" | "mcp_servers"
-  entry: (url: string) => Record<string, unknown> // one URL-only server entry
+  entry: (url: string, headers?: Record<string, string>) => Record<string, unknown> // server entry (+ optional analytics headers)
   // --- skills + auth ---
   skillsSlug?: string
   logoutCmd?: string[] // CLI command to clear the agent's cached creds, if any
@@ -52,17 +52,22 @@ function vscodeUserMcp(): string {
   return path.join(HOME, ".config", "Code", "User", "mcp.json")
 }
 
-// --- per-agent entry shapes (URL only; the agent self-authenticates) ---
-const httpType = (url: string) => ({ type: "http", url }) // Claude, VS Code
+// --- per-agent entry shapes ---
+// Each builder takes the server URL + optional `headers` (analytics: the install id,
+// plus a session ref on launcher flows). `headers` is the de-facto MCP-config field
+// for HTTP/remote servers; clients that don't read it ignore it. Per-agent honoring
+// is verified before we rely on it — see brains/integration-analytics-design.md §15.
+const withHeaders = (h?: Record<string, string>) => (h ? { headers: h } : {})
+const httpType = (url: string, h?: Record<string, string>) => ({ type: "http", url, ...withHeaders(h) }) // Claude, VS Code
 // GitHub Copilot CLI requires `tools` on every HTTP server (type + url + tools are
 // all required). Without it the server is written but stays "stopped" with no tools
 // and no start control. "*" = expose all tools. CLI-only — Claude/VS Code reject it.
-const copilotHttp = (url: string) => ({ type: "http", url, tools: ["*"] })
-const urlOnly = (url: string) => ({ url }) // Cursor
-const codexEntry = (url: string) => ({ url, enabled: true }) // Codex (TOML)
-const httpUrlField = (url: string) => ({ httpUrl: url }) // Gemini
-const opencodeRemote = (url: string) => ({ type: "remote", url, enabled: true }) // OpenCode
-const serverUrlEntry = (url: string) => ({ serverUrl: url }) // Windsurf, Antigravity
+const copilotHttp = (url: string, h?: Record<string, string>) => ({ type: "http", url, tools: ["*"], ...withHeaders(h) })
+const urlOnly = (url: string, h?: Record<string, string>) => ({ url, ...withHeaders(h) }) // Cursor
+const codexEntry = (url: string, h?: Record<string, string>) => ({ url, enabled: true, ...withHeaders(h) }) // Codex (TOML)
+const httpUrlField = (url: string, h?: Record<string, string>) => ({ httpUrl: url, ...withHeaders(h) }) // Gemini
+const opencodeRemote = (url: string, h?: Record<string, string>) => ({ type: "remote", url, enabled: true, ...withHeaders(h) }) // OpenCode
+const serverUrlEntry = (url: string, h?: Record<string, string>) => ({ serverUrl: url, ...withHeaders(h) }) // Windsurf, Antigravity
 
 export const AGENTS: AgentDef[] = [
   {
