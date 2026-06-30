@@ -20,6 +20,7 @@ import {
   DOCS_MCP_NAME,
   JUSPAY_MCP_ENDPOINT,
   OUR_MCP_NAMES,
+  readExisting,
   type AgentDef,
   type Scope,
 } from "../../../../shared/agents/index.js"
@@ -69,35 +70,6 @@ export async function removeMcp(agent: AgentDef, scope: Scope): Promise<boolean>
   const out = agent.format === "json" ? JSON.stringify(config, null, 2) + "\n" : stringifyToml(config)
   await writeAtomic(file, out)
   return true
-}
-
-// Parsed check: is OUR dashboard MCP actually in the agent's config at this
-// scope? Reads the real container key instead of grepping the raw file, so an
-// unrelated occurrence of "juspay-mcp" (in a comment, in another value) does
-// not false-positive. (Convention borrowed from microsoft/apm.)
-export async function hasOurMcp(agent: AgentDef, scope: Scope): Promise<boolean> {
-  const config = await readExisting(configFileFor(agent, scope), agent.format).catch(() => null)
-  if (!config) return false
-  const container = config[agent.containerKey] as Record<string, unknown> | undefined
-  return Boolean(container && container[DASHBOARD_MCP_NAME])
-}
-
-// Read an existing config, or null if absent. Throws (refusing to overwrite) if
-// the file exists but can't be parsed.
-async function readExisting(file: string, format: AgentDef["format"]): Promise<Record<string, unknown> | null> {
-  let raw: string
-  try {
-    raw = await fs.readFile(file, "utf8")
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null
-    throw err
-  }
-  if (raw.trim() === "") return null
-  try {
-    return (format === "json" ? JSON.parse(raw) : parseToml(raw)) as Record<string, unknown>
-  } catch {
-    throw new Error(`${file} isn't valid ${format.toUpperCase()}; refusing to overwrite it. Fix or remove it, then re-run.`)
-  }
 }
 
 async function mergeJson(file: string, containerKey: string, entries: Record<string, unknown>): Promise<void> {
