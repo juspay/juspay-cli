@@ -1,4 +1,4 @@
-import pkg from "../../../../../package.json" with { type: "json" }
+import pkg from "../../../package.json" with { type: "json" }
 
 // Juspay MCP resource endpoints. Both are remote streamable-HTTP MCP servers.
 // The dashboard server requires auth, but the AGENT performs its own OAuth

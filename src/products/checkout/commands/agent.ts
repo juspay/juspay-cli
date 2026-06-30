@@ -38,14 +38,14 @@ import {
   type AgentSpec,
   type McpServer,
 } from "../../../shared/opencode/index.js"
-import { findAgent } from "../features/agent-setup/agents.js"
 import {
   DASHBOARD_MCP_NAME,
   DOCS_MCP_ENDPOINT,
   DOCS_MCP_NAME,
+  findAgent,
   JUSPAY_MCP_ENDPOINT,
   OUR_SKILL_NAMES,
-} from "../features/agent-setup/servers.js"
+} from "../../../shared/agents/index.js"
 import { addSkills, removeSkills } from "../features/agent-setup/skills-installer.js"
 
 // --- Checkout-specific provisioning (the bits the command supplies to the

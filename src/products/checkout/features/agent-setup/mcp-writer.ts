@@ -13,14 +13,16 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 
-import { configFileFor, type AgentDef, type Scope } from "./agents.js"
 import {
+  configFileFor,
   DASHBOARD_MCP_NAME,
   DOCS_MCP_ENDPOINT,
   DOCS_MCP_NAME,
   JUSPAY_MCP_ENDPOINT,
   OUR_MCP_NAMES,
-} from "./servers.js"
+  type AgentDef,
+  type Scope,
+} from "../../../../shared/agents/index.js"
 import { analyticsEnabled, getInstallId, mcpAnalyticsHeaders } from "../../../../shared/analytics/index.js"
 
 // Write our two MCP servers into the agent's config for `scope`.
