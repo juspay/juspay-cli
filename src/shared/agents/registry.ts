@@ -42,14 +42,23 @@ export type AgentDef = {
   vscodeExt?: boolean
 }
 
-function vscodeUserMcp(): string {
+// VS Code's per-user data dir — where its mcp.json lives and where we write. Created
+// the first time VS Code runs, on every OS (Windows uses %APPDATA%). This is our
+// primary VS Code detection signal (see hasVscode): reliable even when Copilot Chat is
+// built-in (no github.copilot* under ~/.vscode/extensions) and when `code` isn't yet on
+// PATH right after a fresh install.
+function vscodeUserDir(): string {
   if (process.platform === "darwin") {
-    return path.join(HOME, "Library", "Application Support", "Code", "User", "mcp.json")
+    return path.join(HOME, "Library", "Application Support", "Code", "User")
   }
   if (process.platform === "win32") {
-    return path.join(process.env.APPDATA ?? path.join(HOME, "AppData", "Roaming"), "Code", "User", "mcp.json")
+    return path.join(process.env.APPDATA ?? path.join(HOME, "AppData", "Roaming"), "Code", "User")
   }
-  return path.join(HOME, ".config", "Code", "User", "mcp.json")
+  return path.join(HOME, ".config", "Code", "User")
+}
+
+function vscodeUserMcp(): string {
+  return path.join(vscodeUserDir(), "mcp.json")
 }
 
 // --- per-agent entry shapes ---
@@ -108,7 +117,10 @@ export const AGENTS: AgentDef[] = [
     skillsSlug: "gemini-cli",
     authHint: "it prompts to sign in on first use",
     bin: "gemini",
-    homeMarkers: [".gemini"],
+    // Antigravity ALSO lives under ~/.gemini (in antigravity/ and config/), so the
+    // bare ~/.gemini dir would false-detect Gemini CLI on an Antigravity-only
+    // machine. Gemini CLI owns the top-level settings.json; key off that instead.
+    homeMarkers: [path.join(".gemini", "settings.json")],
   },
   {
     id: "opencode",
@@ -135,8 +147,11 @@ export const AGENTS: AgentDef[] = [
     entry: copilotHttp, // CLI needs `tools` on each server (see copilotHttp)
     skillsSlug: "github-copilot",
     authHint: "in-app (note: Copilot remote-MCP OAuth is currently limited)",
+    // Detect ONLY via the binary. No homeMarkers: ~/.copilot is created by the CLI
+    // itself (npm install), so a leftover dir with no `copilot` on PATH means an
+    // uninstalled/unusable CLI — don't surface it. (VS Code Copilot Chat is the
+    // `vscode` entry; it does NOT create ~/.copilot.)
     bin: "copilot",
-    homeMarkers: [".copilot"],
   },
   {
     id: "cursor",
@@ -183,7 +198,7 @@ export const AGENTS: AgentDef[] = [
   },
   {
     id: "vscode",
-    label: "GitHub Copilot (VS Code)",
+    label: "VS Code Copilot Chat",
     globalPath: vscodeUserMcp(),
     projectPath: path.join(".vscode", "mcp.json"),
     globalOnly: true, // configured at user scope, not per-project
@@ -219,7 +234,7 @@ async function isDetected(a: AgentDef): Promise<boolean> {
   for (const m of a.homeMarkers ?? []) {
     if (await exists(path.join(HOME, m))) return true
   }
-  if (a.vscodeExt && (await hasVscodeCopilot())) return true
+  if (a.vscodeExt && (await hasVscode())) return true
   return false
 }
 
@@ -230,6 +245,16 @@ async function onPath(bin: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+// VS Code is present iff its user-data dir exists (created on first run; the same dir we
+// write mcp.json into) — reliable on every OS incl. Windows (%APPDATA%\Code\User), and
+// independent of Copilot being built-in (no github.copilot* under ~/.vscode/extensions)
+// or `code` being on PATH. The latter two are best-effort fallbacks for edge setups.
+async function hasVscode(): Promise<boolean> {
+  if (await exists(vscodeUserDir())) return true
+  if (await onPath("code")) return true
+  return hasVscodeCopilot()
 }
 
 async function hasVscodeCopilot(): Promise<boolean> {
