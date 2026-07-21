@@ -29,7 +29,7 @@ import type { Command } from "commander"
 import pc from "picocolors"
 
 import type { CliContext } from "../../../cli/types.js"
-import { ensureAuth, logout, whoami, type Identity } from "../../../shared/auth/index.js"
+import { ensureAuth, getToken, logout, whoami, type Identity } from "../../../shared/auth/index.js"
 import {
   ensureOpencode,
   launchOpencode,
@@ -208,10 +208,16 @@ function confirmAndProceed(ctx: CliContext): Promise<void> {
   })
 }
 
-// Sign-in choice. `--skip-auth` forces skip; non-interactive defaults to signing
-// in (preserves prior behaviour); interactive prompts with the two options.
+// Sign-in choice. `--skip-auth` forces skip; an existing valid session is reused
+// silently (no re-prompt — ensureAuth() then reuses the token without a browser);
+// non-interactive defaults to signing in (preserves prior behaviour); otherwise
+// interactive prompts with the two options.
 async function decideLogin(opts: { skipAuth?: boolean }): Promise<boolean> {
   if (opts.skipAuth) return false
+  // Already signed in with a token valid >24h out? Skip the prompt entirely and
+  // reuse it — re-running `agent` must not re-ask when creds already exist. This
+  // is the scan the prompt used to skip: getToken() never opens a browser.
+  if (await getToken()) return true
   if (!process.stdin.isTTY) return true
   const choice = await select({
     message: "Sign in to Juspay?",
