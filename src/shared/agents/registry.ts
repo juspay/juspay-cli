@@ -40,6 +40,12 @@ export type AgentDef = {
   bin?: string
   homeMarkers?: string[]
   vscodeExt?: boolean
+  // Write the MCP URLs WITHOUT the analytics query string (install_id/agent).
+  // For agents that authenticate the dashboard MCP via their own OAuth and cache
+  // that auth keyed by the server URL (VS Code, Antigravity), keeping the URL
+  // canonical avoids query-bearing OAuth-resource/cache-key quirks. install_id is
+  // still carried via the header for these agents.
+  noUrlParams?: boolean
 }
 
 // VS Code's per-user data dir — where its mcp.json lives and where we write. Created
@@ -190,6 +196,7 @@ export const AGENTS: AgentDef[] = [
     format: "json",
     containerKey: "mcpServers",
     entry: serverUrlEntry,
+    noUrlParams: true, // Antigravity OAuths the dashboard MCP + caches auth keyed by URL
     // `skills` CLI supports Antigravity natively (--agent antigravity): project →
     // .agents/skills/ (read by Antigravity), global → ~/.gemini/antigravity/skills/.
     skillsSlug: "antigravity",
@@ -209,6 +216,7 @@ export const AGENTS: AgentDef[] = [
     skillsSlug: "github-copilot",
     authHint: "VS Code prompts to authenticate in the MCP view",
     vscodeExt: true,
+    noUrlParams: true, // VS Code OAuths the dashboard MCP + caches auth keyed by URL
   },
 ]
 
