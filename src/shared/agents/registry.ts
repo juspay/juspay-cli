@@ -73,7 +73,8 @@ const httpType = (url: string, h?: Record<string, string>) => ({ type: "http", u
 // and no start control. "*" = expose all tools. CLI-only — Claude/VS Code reject it.
 const copilotHttp = (url: string, h?: Record<string, string>) => ({ type: "http", url, tools: ["*"], ...withHeaders(h) })
 const urlOnly = (url: string, h?: Record<string, string>) => ({ url, ...withHeaders(h) }) // Cursor
-const codexEntry = (url: string, h?: Record<string, string>) => ({ url, enabled: true, ...withHeaders(h) }) // Codex (TOML)
+// Codex (TOML) uses `http_headers` (NOT `headers`) for custom HTTP MCP headers.
+const codexEntry = (url: string, h?: Record<string, string>) => ({ url, enabled: true, ...(h ? { http_headers: h } : {}) })
 const httpUrlField = (url: string, h?: Record<string, string>) => ({ httpUrl: url, ...withHeaders(h) }) // Gemini
 const opencodeRemote = (url: string, h?: Record<string, string>) => ({ type: "remote", url, enabled: true, ...withHeaders(h) }) // OpenCode
 const serverUrlEntry = (url: string, h?: Record<string, string>) => ({ serverUrl: url, ...withHeaders(h) }) // Windsurf, Antigravity

@@ -26,16 +26,31 @@ import {
 } from "../../../../shared/agents/index.js"
 import { analyticsEnabled, getInstallId, mcpAnalyticsHeaders } from "../../../../shared/analytics/index.js"
 
+// Tag the MCP URL with the durable install id + which agent this config is for, in
+// the query string — the durable carrier. Some agents don't forward custom headers
+// at all (e.g. older Codex), and TLS-inspecting corporate proxies strip them; the URL
+// query always reaches the MCP. `agent` lets the backend attribute a session to the
+// client (claude / codex / cursor / …). The header is kept alongside as a secondary path.
+function taggedUrl(url: string, installId?: string, agentId?: string): string {
+  if (!installId) return url
+  const params = new URLSearchParams({ install_id: installId })
+  if (agentId) params.set("agent", agentId)
+  const sep = url.includes("?") ? "&" : "?"
+  return `${url}${sep}${params.toString()}`
+}
+
 // Write our two MCP servers into the agent's config for `scope`.
 export async function writeMcp(agent: AgentDef, scope: Scope): Promise<void> {
   const file = configFileFor(agent, scope)
-  // Tag both servers with the durable install id so the backend can attribute MCP
-  // hits to this machine's journey (time-sensitized into sessions on the direct
-  // path). Opt-out (analyticsEnabled=false) writes plain URL-only entries as before.
-  const headers = analyticsEnabled() ? mcpAnalyticsHeaders(await getInstallId()) : undefined
+  // Tag both servers with the durable install id (+ agent slug) so the backend can
+  // attribute MCP hits to this machine's journey and to the calling agent. Carried in
+  // the URL query (primary) AND the header (secondary). Opt-out (analyticsEnabled=false)
+  // writes plain URL-only entries as before.
+  const installId = analyticsEnabled() ? await getInstallId() : undefined
+  const headers = installId ? mcpAnalyticsHeaders(installId) : undefined
   const entries: Record<string, unknown> = {
-    [DOCS_MCP_NAME]: agent.entry(DOCS_MCP_ENDPOINT, headers),
-    [DASHBOARD_MCP_NAME]: agent.entry(JUSPAY_MCP_ENDPOINT, headers),
+    [DOCS_MCP_NAME]: agent.entry(taggedUrl(DOCS_MCP_ENDPOINT, installId, agent.id), headers),
+    [DASHBOARD_MCP_NAME]: agent.entry(taggedUrl(JUSPAY_MCP_ENDPOINT, installId, agent.id), headers),
   }
 
   await fs.mkdir(path.dirname(file), { recursive: true })
