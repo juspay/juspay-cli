@@ -48,14 +48,22 @@ export async function writeMcp(agent: AgentDef, scope: Scope): Promise<void> {
   // writes plain URL-only entries as before.
   const installId = analyticsEnabled() ? await getInstallId() : undefined
   const headers = installId ? mcpAnalyticsHeaders(installId) : undefined
-  // OAuth-native agents (VS Code, Antigravity) get canonical URLs — no query string —
-  // since they cache their dashboard-MCP OAuth keyed by the server URL. install_id still
-  // rides the header for them. All other agents carry install_id + agent in the query
-  // (the proxy-resilient primary path).
-  const tag = (url: string) => (agent.noUrlParams ? url : taggedUrl(url, installId, agent.id))
+  // The DOCS server is unauthenticated, so it ALWAYS carries install_id + agent in the
+  // query (the proxy-resilient primary carrier) — this is where the backend gets the
+  // machine's session identity and the calling agent, for every agent.
+  //
+  // The DASHBOARD server is OAuth-protected and its URL is the OAuth *resource
+  // identifier* — a query string there breaks the OAuth flow for some clients (VS Code,
+  // Antigravity), so those get a canonical dashboard URL (flagged noDashboardQuery).
+  // Everyone else keeps the query on the dashboard too (proxy-resilient mid stitching).
+  // The dashboard always keeps the install_id header + gets mid from its OAuth session.
+  const docsUrl = taggedUrl(DOCS_MCP_ENDPOINT, installId, agent.id)
+  const dashUrl = agent.noDashboardQuery
+    ? JUSPAY_MCP_ENDPOINT
+    : taggedUrl(JUSPAY_MCP_ENDPOINT, installId, agent.id)
   const entries: Record<string, unknown> = {
-    [DOCS_MCP_NAME]: agent.entry(tag(DOCS_MCP_ENDPOINT), headers),
-    [DASHBOARD_MCP_NAME]: agent.entry(tag(JUSPAY_MCP_ENDPOINT), headers),
+    [DOCS_MCP_NAME]: agent.entry(docsUrl, headers),
+    [DASHBOARD_MCP_NAME]: agent.entry(dashUrl, headers),
   }
 
   await fs.mkdir(path.dirname(file), { recursive: true })
