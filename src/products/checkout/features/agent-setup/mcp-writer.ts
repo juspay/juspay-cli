@@ -48,9 +48,14 @@ export async function writeMcp(agent: AgentDef, scope: Scope): Promise<void> {
   // writes plain URL-only entries as before.
   const installId = analyticsEnabled() ? await getInstallId() : undefined
   const headers = installId ? mcpAnalyticsHeaders(installId) : undefined
+  // OAuth-native agents (VS Code, Antigravity) get canonical URLs — no query string —
+  // since they cache their dashboard-MCP OAuth keyed by the server URL. install_id still
+  // rides the header for them. All other agents carry install_id + agent in the query
+  // (the proxy-resilient primary path).
+  const tag = (url: string) => (agent.noUrlParams ? url : taggedUrl(url, installId, agent.id))
   const entries: Record<string, unknown> = {
-    [DOCS_MCP_NAME]: agent.entry(taggedUrl(DOCS_MCP_ENDPOINT, installId, agent.id), headers),
-    [DASHBOARD_MCP_NAME]: agent.entry(taggedUrl(JUSPAY_MCP_ENDPOINT, installId, agent.id), headers),
+    [DOCS_MCP_NAME]: agent.entry(tag(DOCS_MCP_ENDPOINT), headers),
+    [DASHBOARD_MCP_NAME]: agent.entry(tag(JUSPAY_MCP_ENDPOINT), headers),
   }
 
   await fs.mkdir(path.dirname(file), { recursive: true })
