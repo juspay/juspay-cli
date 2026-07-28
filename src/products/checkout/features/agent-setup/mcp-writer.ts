@@ -25,13 +25,14 @@ import {
   type Scope,
 } from "../../../../shared/agents/index.js"
 import { analyticsEnabled, getInstallId, mcpAnalyticsHeaders } from "../../../../shared/analytics/index.js"
+import { callMcpTool } from "../../../../shared/auth/mcp-call.js"
 
 // Tag the MCP URL with the durable install id + which agent this config is for, in
 // the query string — the durable carrier. Some agents don't forward custom headers
 // at all (e.g. older Codex), and TLS-inspecting corporate proxies strip them; the URL
 // query always reaches the MCP. `agent` lets the backend attribute a session to the
 // client (claude / codex / cursor / …). The header is kept alongside as a secondary path.
-function taggedUrl(url: string, installId?: string, agentId?: string): string {
+export function taggedUrl(url: string, installId?: string, agentId?: string): string {
   if (!installId) return url
   const params = new URLSearchParams({ install_id: installId })
   if (agentId) params.set("agent", agentId)
@@ -69,6 +70,41 @@ export async function writeMcp(agent: AgentDef, scope: Scope): Promise<void> {
   await fs.mkdir(path.dirname(file), { recursive: true })
   if (agent.format === "json") await mergeJson(file, agent.containerKey, entries)
   else await mergeToml(file, agent.containerKey, entries)
+}
+
+// Best-effort "setup" funnel milestone: once this machine has configured an agent,
+// tell the backend the tooling is in place. This is the truthful top of the funnel —
+// it fires at config time, before any skill runs, so "installed but never engaged" is
+// visible. The DOCS server is unauthenticated, so we call its (public) tracking tool
+// directly with the same tagged URL we just wrote (install_id + agent slug carry the
+// identity); no secret ever leaves the CLI — the docs MCP holds the ingest token.
+// Telemetry, never a gate: bounded by a short timeout and swallows every error.
+export async function emitSetupStage(agent: AgentDef): Promise<void> {
+  if (!analyticsEnabled()) return
+  let installId: string | undefined
+  try {
+    installId = await getInstallId()
+  } catch {
+    return
+  }
+  if (!installId) return
+  const url = taggedUrl(DOCS_MCP_ENDPOINT, installId, agent.id)
+  try {
+    await withTimeout(
+      callMcpTool(url, "", "juspay_track_integration_stage", { phase: "setup", status: "completed" }),
+      2000,
+    )
+  } catch {
+    // analytics must never disrupt setup — drop timeouts/network/tool errors silently
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("timeout")), ms)
+    if (typeof t.unref === "function") t.unref()
+    p.then(resolve, reject).finally(() => clearTimeout(t))
+  })
 }
 
 // Remove our two MCP servers from the agent's config at `scope`. Returns true if
