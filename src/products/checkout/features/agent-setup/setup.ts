@@ -13,9 +13,9 @@
 import { cancel, isCancel, multiselect, select } from "@clack/prompts"
 
 import { detectAgents, hasOurMcp, type AgentDef, type Scope } from "../../../../shared/agents/index.js"
-import { writeMcp } from "./mcp-writer.js"
+import { emitSetupStage, writeMcp } from "./mcp-writer.js"
 import { addSkills } from "./skills-installer.js"
-import { info, spin, step, warn } from "../../../../core/ui.js"
+import { hint, info, spin, step, warn } from "../../../../core/ui.js"
 
 export type SetupResult = {
   configured: AgentDef[]
@@ -66,6 +66,10 @@ export async function runSetup(): Promise<SetupResult> {
     }
   }
   s.done(`Configured ${configured.map((a) => a.label).join(", ")}`)
+  // Best-effort funnel "setup" milestone per freshly-configured agent (never blocks
+  // meaningfully — each call is timeout-bounded and swallows errors). Only the newly
+  // added agents (`pending`), so re-running setup doesn't re-emit for existing ones.
+  if (pending.length > 0) await Promise.allSettled(pending.map((a) => emitSetupStage(a)))
   if (scope === "project") {
     const forced = configured.filter((a) => a.globalOnly)
     if (forced.length > 0) {
@@ -102,6 +106,9 @@ export async function runSetup(): Promise<SetupResult> {
 
 async function pickAgents(detected: AgentDef[], interactive: boolean): Promise<AgentDef[]> {
   if (!interactive) return detected // CI/headless: configure all detected
+  // Clack's multiselect only nags on an empty submit — many users don't realise
+  // selection is space, not enter. State it up front.
+  hint("space to select · ↑/↓ to move · enter to confirm")
   const ids = await multiselect({
     message: "Which agents should get Juspay MCP + skills?",
     options: detected.map((a) => ({ value: a.id, label: a.label })),

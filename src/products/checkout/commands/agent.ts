@@ -47,6 +47,8 @@ import {
   OUR_SKILL_NAMES,
 } from "../../../shared/agents/index.js"
 import { addSkills, removeSkills } from "../features/agent-setup/skills-installer.js"
+import { emitSetupStage, taggedUrl } from "../features/agent-setup/mcp-writer.js"
+import { analyticsEnabled, getInstallId } from "../../../shared/analytics/index.js"
 
 // --- Checkout-specific provisioning (the bits the command supplies to the
 // product-agnostic shared/opencode wrapper). ---
@@ -160,9 +162,22 @@ async function runAgent(ctx: CliContext, opts: { skipAuth?: boolean }): Promise<
   // 4. Provision the inline session config (nothing written to disk). When signed
   // in, the dashboard MCP is pre-authenticated via the token header; when skipped,
   // it's URL-only and OpenCode handles its OAuth in-session.
+  //
+  // Tag both URLs with the durable install id + agent slug (the same query carrier
+  // agent-setup writes) so this session's MCP hits — and the jp-* skills' own stage
+  // milestones emitted from inside OpenCode — are attributed to this machine's
+  // journey. Without it OpenCode sessions reach the backend anonymously and drop.
+  // The docs URL is always tagged (unauthenticated); the dashboard URL is tagged
+  // unless the agent's OAuth breaks on a query (opencode is fine — not flagged).
+  const opencodeDef = findAgent("opencode")
+  const installId = analyticsEnabled() ? await getInstallId() : undefined
+  const docsUrl = taggedUrl(DOCS_MCP_ENDPOINT, installId, opencodeDef?.id)
+  const dashUrl = opencodeDef?.noDashboardQuery
+    ? JUSPAY_MCP_ENDPOINT
+    : taggedUrl(JUSPAY_MCP_ENDPOINT, installId, opencodeDef?.id)
   const mcp: Record<string, McpServer> = {
-    [DOCS_MCP_NAME]: { url: DOCS_MCP_ENDPOINT }, // unauthenticated either way
-    [DASHBOARD_MCP_NAME]: { url: JUSPAY_MCP_ENDPOINT, authenticated: login },
+    [DOCS_MCP_NAME]: { url: docsUrl }, // unauthenticated either way
+    [DASHBOARD_MCP_NAME]: { url: dashUrl, authenticated: login },
   }
   const provisioned = provision({
     token,
@@ -177,6 +192,12 @@ async function runAgent(ctx: CliContext, opts: { skipAuth?: boolean }): Promise<
   // whole screen; on exit control returns to the shell with our banner in scrollback.
   printLaunchSummary(ctx, identity)
   await confirmAndProceed(ctx)
+
+  // Best-effort funnel "setup" milestone — the tooling is now configured for this
+  // OpenCode session (skills + MCP provisioned, user consented). Fire-and-forget:
+  // launchOpencode keeps the parent alive for the whole TUI session, so the bounded
+  // call completes without delaying the launch; it swallows every error.
+  if (opencodeDef) void emitSetupStage(opencodeDef)
 
   // 6. Install OpenCode if missing (after consent), then hand off.
   const opencode = await ensureOpencode()
@@ -270,32 +291,32 @@ function printLaunchSummary(ctx: CliContext, identity: Identity | null): void {
   // No technical inventory here — the user is about to be inside the TUI. Say what
   // this is (Juspay-wrapped OpenCode), the two agents, and the session/auth state.
   const lines: string[] = [
-    pc.dim("OpenCode — the open-source coding CLI — pre-configured with"),
-    pc.dim("Juspay for payments integration, on OpenCode's free model."),
+    "OpenCode — the open-source coding CLI — pre-configured with",
+    "Juspay for payments integration, on OpenCode's free model.",
     "",
-    pc.dim("Agents (switch anytime in OpenCode):"),
-    "  " + pc.bold("juspay-integrate") + pc.dim("  build the integration (edits code)"),
-    "  " + pc.bold("juspay-explain") + pc.dim("    answer Juspay questions (read-only)"),
+    pc.bold("Agents") + pc.dim("  (switch anytime in OpenCode)"),
+    "  " + pc.cyan("juspay-integrate") + pc.dim("  build the integration (edits code)"),
+    "  " + pc.cyan("juspay-explain") + pc.dim("    answer Juspay questions (read-only)"),
     "",
   ]
 
   if (identity) {
     lines.push(
-      pc.dim("Signed in    ") + pc.bold(identity.merchant_id) + pc.dim(`  (${identity.environment})`),
+      pc.green("✓ ") + "Signed in as " + pc.bold(identity.merchant_id) + pc.dim(`  (${identity.environment})`),
       "",
-      pc.dim("Switch login ") + pc.cyan("juspay checkout auth login"),
-      pc.dim("Sign out     ") + pc.cyan("juspay checkout auth logout"),
+      pc.dim("Switch login  ") + pc.cyan("juspay checkout auth login"),
+      pc.dim("Sign out      ") + pc.cyan("juspay checkout auth logout"),
     )
   } else {
     // Skipped sign-in: the docs MCP works as-is; the dashboard MCP needs a one-time
     // OAuth inside OpenCode (same hint agent-setup gives for OpenCode).
-    const hint = findAgent("opencode")?.authHint
+    const authHint = findAgent("opencode")?.authHint
     lines.push(
-      pc.yellow("Not signed in") + pc.dim(" — the docs MCP works now; authenticate the"),
-      pc.dim("dashboard MCP inside OpenCode:"),
-      ...(hint ? ["  " + pc.cyan(hint)] : []),
+      pc.yellow("⚠ Not signed in") + " — the docs MCP works now; authenticate",
+      "the dashboard MCP inside OpenCode:",
+      ...(authHint ? ["  " + pc.cyan(authHint)] : []),
       "",
-      pc.dim("Sign in later ") + pc.cyan("juspay checkout auth login"),
+      pc.dim("Sign in later  ") + pc.cyan("juspay checkout auth login"),
     )
   }
 

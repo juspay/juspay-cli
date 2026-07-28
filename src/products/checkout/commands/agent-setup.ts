@@ -60,12 +60,13 @@ async function runSetupCommand(ctx: CliContext): Promise<void> {
 function nextSteps(ctx: CliContext, result: SetupResult): void {
   process.stdout.write("\n  " + pc.bold("Next steps") + "\n")
   if (result.pending.length > 0) {
-    process.stdout.write("  " + pc.dim("Authenticate the Juspay MCP in these (one-time):") + "\n")
+    process.stdout.write("  Authenticate the dashboard MCP — one-time, per agent:\n")
     for (const a of result.pending) {
-      process.stdout.write("    " + pc.dim(`• ${a.label}: `) + a.authHint + "\n")
+      process.stdout.write("    " + pc.cyan("•") + " " + pc.bold(a.label) + pc.dim(" — ") + pc.cyan(a.authHint) + "\n")
     }
+    process.stdout.write("  " + pc.dim("(the docs MCP needs no sign-in)") + "\n")
   } else {
-    process.stdout.write("  " + pc.dim("All set — your agents are configured.") + "\n")
+    process.stdout.write("  " + pc.green("✓ ") + "All set — your agents are configured.\n")
   }
   process.stdout.write("\n  " + pc.dim("Remove everything: ") + pc.cyan(`${CMD_PATH} uninstall`) + "\n\n")
 }

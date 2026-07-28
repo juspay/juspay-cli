@@ -89,6 +89,15 @@ export function step(msg: string): void {
   process.stdout.write("  " + pc.dim("→ ") + msg + "\n")
 }
 
+/**
+ * A readable, actionable hint — a keybinding or next action. Deliberately NOT
+ * dimmed: hints are the thing users most need to notice, so they get a cyan
+ * marker + default-colored text instead of info()'s faint dim.
+ */
+export function hint(msg: string): void {
+  process.stdout.write("  " + pc.cyan("›") + " " + msg + "\n")
+}
+
 export function done(msg: string): void {
   process.stdout.write("  " + pc.green("✓ ") + msg + "\n")
 }
