@@ -79,9 +79,9 @@ export function spin(message: string): Spinner {
   return new Spinner(message).start()
 }
 
-export function banner(): void {
+export function banner(title = "Juspay for AI agents"): void {
   process.stdout.write("\n")
-  process.stdout.write("  " + pc.cyan(pc.bold("Juspay for AI agents")) + "\n")
+  process.stdout.write("  " + pc.cyan(pc.bold(title)) + "\n")
   process.stdout.write("\n")
 }
 

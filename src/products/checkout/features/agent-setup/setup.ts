@@ -10,12 +10,19 @@
  * ones, so re-running setup doesn't re-nag already-configured agents.
  */
 
-import { cancel, isCancel, multiselect, select } from "@clack/prompts"
+import { cancel } from "@clack/prompts"
 
-import { detectAgents, hasOurMcp, type AgentDef, type Scope } from "../../../../shared/agents/index.js"
+import {
+  detectAgents,
+  hasOurMcp,
+  pickAgents,
+  pickScope,
+  type AgentDef,
+  type Scope,
+} from "../../../../shared/agents/index.js"
 import { emitSetupStage, writeMcp } from "./mcp-writer.js"
 import { addSkills } from "./skills-installer.js"
-import { hint, info, spin, step, warn } from "../../../../core/ui.js"
+import { info, spin, step, warn } from "../../../../core/ui.js"
 
 export type SetupResult = {
   configured: AgentDef[]
@@ -39,7 +46,7 @@ export async function runSetup(): Promise<SetupResult> {
   }
 
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY)
-  const selected = await pickAgents(detected, interactive)
+  const selected = await pickAgents(detected, interactive, "Which agents should get Juspay MCP + skills?")
   if (selected.length === 0) {
     cancel("No agents selected.")
     process.exit(0)
@@ -102,40 +109,4 @@ export async function runSetup(): Promise<SetupResult> {
   }
 
   return { configured, pending, scope, attempted: selected.length, skillsInstalled, skillsError }
-}
-
-async function pickAgents(detected: AgentDef[], interactive: boolean): Promise<AgentDef[]> {
-  if (!interactive) return detected // CI/headless: configure all detected
-  // Clack's multiselect only nags on an empty submit — many users don't realise
-  // selection is space, not enter. State it up front.
-  hint("space to select · ↑/↓ to move · enter to confirm")
-  const ids = await multiselect({
-    message: "Which agents should get Juspay MCP + skills?",
-    options: detected.map((a) => ({ value: a.id, label: a.label })),
-    initialValues: [], // nothing pre-ticked — opt in
-    required: true, // can't confirm an empty selection
-  })
-  if (isCancel(ids)) {
-    cancel("Cancelled.")
-    process.exit(0)
-  }
-  const set = new Set(ids as string[])
-  return detected.filter((a) => set.has(a.id))
-}
-
-async function pickScope(interactive: boolean): Promise<Scope> {
-  if (!interactive) return "global" // CI/headless default
-  const scope = await select({
-    message: "Install where?",
-    options: [
-      { value: "global", label: "Global", hint: "available in every project" },
-      { value: "project", label: "This project", hint: "lives in this repo (committable)" },
-    ],
-    initialValue: "global",
-  })
-  if (isCancel(scope)) {
-    cancel("Cancelled.")
-    process.exit(0)
-  }
-  return scope as Scope
 }

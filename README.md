@@ -2,7 +2,10 @@
 
 The `juspay` command-line tool — payments, checkout, and AI-agent integration tooling.
 
-Today it ships the **`checkout`** product, whose `agent-setup` command adds Juspay's MCP servers + the `jp-prd` / `jp-architecture` / `jp-executor` / `jp-validate` integration skills to your AI coding agents.
+It ships two products:
+
+- **`checkout`** — whose `agent-setup` command adds Juspay's MCP servers + the `jp-prd` / `jp-architecture` / `jp-executor` / `jp-validate` integration skills to your AI coding agents.
+- **`hdfc-sg`** — whose `agent-setup` command adds the `hdfc-sg-integration` skill for HDFC SmartGateway merchants (skill only, no MCP). See [HDFC SmartGateway](#hdfc-smartgateway).
 
 ```sh
 npx juspay checkout agent-setup
@@ -40,9 +43,22 @@ juspay                                  # show the command list
 juspay checkout agent-setup             # pick agents + scope, add the Juspay MCP + skills
 juspay checkout agent-setup list        # show which agents are configured, and at which scope
 juspay checkout agent-setup uninstall   # remove the MCP + skills (global + project) and sign out
+juspay hdfc-sg agent-setup              # pick agents + scope, add the HDFC SmartGateway skill
+juspay hdfc-sg agent-setup list         # show where the HDFC SmartGateway skill is installed
+juspay hdfc-sg agent-setup uninstall    # remove the HDFC SmartGateway skill (global + project)
 ```
 
 (Prefix any of these with `npx ` to run without a global install, e.g. `npx juspay checkout agent-setup`.)
+
+## HDFC SmartGateway
+
+```sh
+npx juspay hdfc-sg agent-setup
+```
+
+Installs the `hdfc-sg-integration` skill (from [`juspay/merchant-skills/HDFC-SG`](https://github.com/juspay/merchant-skills/tree/main/HDFC-SG)) into the agents you pick, globally or for this project. No MCP servers and no sign-in — the skill reads the SmartGateway integration kit directly. Then ask your agent to *integrate HDFC SmartGateway payments*.
+
+It is independent of `checkout`: installing or uninstalling one never touches the other's skills.
 
 ## Authenticating the dashboard MCP
 
