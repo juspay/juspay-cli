@@ -4,9 +4,11 @@
  */
 
 import { checkout } from "../products/checkout/index.js"
+import { hdfcSg } from "../products/hdfc-sg/index.js"
 import type { ProductModule } from "./types.js"
 
 export const PRODUCTS: ProductModule[] = [
   checkout,
+  hdfcSg,
   // upi, hyperswitch, ...  ← one import + one line each
 ]

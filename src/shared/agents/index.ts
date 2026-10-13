@@ -3,3 +3,4 @@
 export * from "./registry.js"
 export * from "./servers.js"
 export * from "./config.js"
+export * from "./prompts.js"
